@@ -1,0 +1,5 @@
+pdfminer.six
+lxml
+selenium
+pylint
+pep8
