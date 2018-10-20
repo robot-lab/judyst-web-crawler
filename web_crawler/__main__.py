@@ -1,6 +1,15 @@
+from ksrf import *
+from web_crawler import *
+
+
 def main():
-    import web_crawler.ksrf as ksrf
-    header_dictionary = ksrf.get_resolution_headers(1)
-    print(header_dictionary)
+    localStorage = LocalFileStorageSource()
+    localStorage.prepare()
+    webSource = KSRFWebSource(localStorage)
+    webSource.PAGE_COUNT = 1
+    headers = webSource.get_all_data(DataType.DOCUMENT_HEADER)
+    print(headers)
+    print(localStorage.get_data('КСРФ_36-П_2017', DataType.DOCUMENT_TEXT))
+
 
 main()
