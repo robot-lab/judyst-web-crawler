@@ -18,16 +18,7 @@ import lxml.html as html
 from selenium import webdriver
 # License: Apache License 2.0
 
-
-# import WebCrawler modules
-# КОСТЫЛЬ как он есть:
-if __name__ == '__main__':
-    # 1) работает внутри, а раз это пакет, то и снаружи из другой компоненты должно
-    # работать, но не работает
-    from web_crawler import DataSource, DataSourceType, DataType
-else:
-    # 2) работает из другой компоненты (link_analysis), но изнутри этой же (если вызывать import ksrf из web_crawler.py, все сломается)
-    from web_crawler.web_crawler import DataSource, DataSourceType, DataType
+from web_crawler import DataSource, DataSourceType, DataType
 
 PATH_TO_CHROME_WEB_DRIVER = path.dirname(__file__) + '\\Selenium\\chromedriver.exe'
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
