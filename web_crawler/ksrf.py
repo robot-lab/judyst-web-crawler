@@ -4,6 +4,7 @@ from os import path
 from platform import system as system_name
 from subprocess import call as system_call
 import json
+import re
 # import libs
 import urllib.request
 # License: MIT License
@@ -19,9 +20,16 @@ from selenium import webdriver
 
 
 # import WebCrawler modules
-from web_crawler import DataSource, DataSourceType, DataType
+# КОСТЫЛЬ как он есть:
+if __name__ == '__main__':
+    # 1) работает внутри, а раз это пакет, то и снаружи из другой компоненты должно
+    # работать, но не работает
+    from web_crawler import DataSource, DataSourceType, DataType
+else:
+    # 2) работает из другой компоненты (link_analysis), но изнутри этой же (если вызывать import ksrf из web_crawler.py, все сломается)
+    from web_crawler.web_crawler import DataSource, DataSourceType, DataType
 
-PATH_TO_CHROME_WEB_DRIVER = 'web_crawler\\Selenium\\chromedriver.exe'
+PATH_TO_CHROME_WEB_DRIVER = path.dirname(__file__) + '\\Selenium\\chromedriver.exe'
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
 
@@ -71,6 +79,10 @@ def get_page_html_by_num(driver, openPagetScriptTemplate, pageNum):
     return driver.page_source
 
 
+typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
+                         r"[А-Яа-я][-А-Яа-я]*(?=/)|[А-Яа-я][-А-Яа-я]*(?=\.)|"
+                         r"[А-Яа-я][-А-Яа-я]*(?=\d))")
+
 def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
     courtSiteContent = {}
@@ -81,12 +93,14 @@ def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
         decisions = page.find_class('ms-alternating') + \
                 page.find_class('ms-vb')
         for d in decisions:
-            decisionID = sourcePrefix + '/' +\
-                d[2].text_content().replace(' ', '').upper()
+            key = d[2].text_content().replace(' ', '').upper()
+            decisionID = sourcePrefix + '/' + key
+            docType = sourcePrefix + '/' + typePattern.search(key)[0]
             date = d[0].text_content()
             title = d[1].text_content()
             url = d[2].getchildren()[0].get('href')
-            headerElements = {'date': date, 'url': url, 'title': title}
+            headerElements = {'date': date, 'type': docType,
+                              'title': title, 'url': url}
             if decisionID not in courtSiteContent:
                 courtSiteContent[decisionID] = headerElements
             else:
@@ -328,3 +342,9 @@ class LocalFileStorageSource(DataSource):
                       self.HEADERS_FILE_NAME),
                       'wt') as headersFile:
                 headersFile.write(json.dumps(self.headers))
+
+if __name__ == '__main__':
+    print(PATH_TO_CHROME_WEB_DRIVER)
+    headersOld = get_resolution_headers(2)
+    print(headersOld)
+    input('press any key...')
