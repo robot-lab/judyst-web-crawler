@@ -27,10 +27,6 @@ PATH_TO_CHROME_WEB_DRIVER = (path.dirname(__file__) +
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
 
-def somefun():  # debug fun
-    print('test_ok')
-
-
 def ping(host):
     """
     Returns True if host (str) responds to a ping request.

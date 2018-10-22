@@ -106,4 +106,4 @@ venv.bak/
 .vscode
 
 .DS_Store
-ksrf_temp_folder
+ksrf_temp_folder/
