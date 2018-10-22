@@ -19,7 +19,10 @@ import lxml.html as html
 from selenium import webdriver
 # License: Apache License 2.0
 
-from web_crawler.web_crawler import DataSource, DataSourceType, DataType
+if __package__:
+    from web_crawler.web_crawler import DataSource, DataSourceType, DataType
+else:
+    from web_crawler import DataSource, DataSourceType, DataType
 
 PATH_TO_CHROME_WEB_DRIVER = path.dirname(__file__) + '\\Selenium\\chromedriver.exe'
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
