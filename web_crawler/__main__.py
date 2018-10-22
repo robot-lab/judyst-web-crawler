@@ -1,5 +1,5 @@
-from ksrf import *
-from web_crawler import *
+from web_crawler.ksrf import *
+from web_crawler.web_crawler import *
 
 
 def main():
