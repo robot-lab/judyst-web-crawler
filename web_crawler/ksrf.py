@@ -17,11 +17,18 @@ import lxml.html as html
 
 from selenium import webdriver
 # License: Apache License 2.0
+if __package__:
+    from web_crawler.web_crawler import DataSource, DataSourceType, DataType
+else:
+    from web_crawler import DataSource, DataSourceType, DataType
 
-from web_crawler import DataSource, DataSourceType, DataType
-
-PATH_TO_CHROME_WEB_DRIVER = path.dirname(__file__) + '\\Selenium\\chromedriver.exe'
+PATH_TO_CHROME_WEB_DRIVER = (path.dirname(__file__) +
+                             '\\Selenium\\chromedriver.exe')
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
+
+
+def somefun():  # debug fun
+    print('test_ok')
 
 
 def ping(host):
@@ -73,6 +80,7 @@ def get_page_html_by_num(driver, openPagetScriptTemplate, pageNum):
 typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=/)|[А-Яа-я][-А-Яа-я]*(?=\.)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=\d))")
+
 
 def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
@@ -155,7 +163,7 @@ def load_resolution_texts(courtSiteContent, folderName='Decision files'):
 class KSRFWebSource(DataSource):
     _temp_folder = 'ksrf_temp_folder'
     _decition_urls = dict()
-    PAGE_COUNT = 1571  #need fix. Pip error is intended.
+    PAGE_COUNT = 1571  # need fix. Pip error is intended.
     _database_source = None
 
     def __init__(self, dataBaseSource):
@@ -244,7 +252,7 @@ class LocalFileStorageSource(DataSource):
             if (not path.exists(self.FOLDER_NAME)):
                 os.mkdir(self.FOLDER_NAME)
             headersFilePath = path.join(self.FOLDER_NAME,
-                                        self.HEADERS_FILE_NAME) 
+                                        self.HEADERS_FILE_NAME)
             if (path.exists(headersFilePath)):
                 with open(headersFilePath, 'rt') as headersFile:
                     self.headers = json.loads(headersFile.read())
