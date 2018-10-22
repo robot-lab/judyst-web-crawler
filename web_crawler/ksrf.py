@@ -5,6 +5,7 @@ from platform import system as system_name
 from subprocess import call as system_call
 import json
 import re
+import math as m
 # import libs
 import urllib.request
 # License: MIT License
@@ -18,7 +19,7 @@ import lxml.html as html
 from selenium import webdriver
 # License: Apache License 2.0
 
-from web_crawler import DataSource, DataSourceType, DataType
+from web_crawler.web_crawler import DataSource, DataSourceType, DataType
 
 PATH_TO_CHROME_WEB_DRIVER = path.dirname(__file__) + '\\Selenium\\chromedriver.exe'
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
@@ -73,6 +74,7 @@ def get_page_html_by_num(driver, openPagetScriptTemplate, pageNum):
 typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=/)|[А-Яа-я][-А-Яа-я]*(?=\.)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=\d))")
+
 
 def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
@@ -150,6 +152,13 @@ def load_resolution_texts(courtSiteContent, folderName='Decision files'):
                 decisionID, folderName)
         courtSiteContent[decisionID]['path to text file'] = pathToTXT
     return courtSiteContent
+
+
+def get_page_count(page, elemOnPage=20):
+    countOfElem = int(page.find_class('ms-formlabel')[0].
+                    getchildren()[1].text_content().
+                    split(':')[1].strip())
+    return m.ceil(countOfElem / elemOnPage)
 
 
 class KSRFWebSource(DataSource):
