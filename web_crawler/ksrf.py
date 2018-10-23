@@ -144,7 +144,7 @@ def download_decision_text(url, docID, folderName, needSaveTxtFile=True,
     with open(pathToPDF, "rb") as PDFFIle, \
             open(pathToTXT, 'wb') as TXTFile:
         pdfminer.high_level.extract_text_to_fp(PDFFIle, TXTFile)
-    with open(pathToTXT, 'rt') as TXTFile:
+    with open(pathToTXT, 'rt', encoding='utf-8') as TXTFile:
         text = TXTFile.read()
     os.remove(pathToPDF)
     if (needSaveTxtFile and needReturnText):
