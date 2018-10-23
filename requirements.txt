@@ -1,0 +1,5 @@
+pdfminer.six==20170720
+lxml==4.2.5
+selenium==3.14.1
+pylint==2.1.1
+pep8==1.7.1
