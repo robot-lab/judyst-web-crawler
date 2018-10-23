@@ -131,7 +131,7 @@ def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
 
-def download_decision_text(url, docID, folderName, needSaveTxtFile=True,
+def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
                            needReturnText=False):
     if not needSaveTxtFile and not needReturnText:
         raise ValueError("'needSaveTxtFile' and 'needReturnText' cannot be"
@@ -182,7 +182,7 @@ def get_pages_number(page=None, elemOnPage=20):
     return math.ceil(countOfElem / elemOnPage)
 
 
-class KSRFWebSource(DataSource):
+class KSRFSource(DataSource):
     _temp_folder = 'ksrf_temp_folder'
     _decision_urls = dict()
     _database_source = None
@@ -217,8 +217,7 @@ class KSRFWebSource(DataSource):
         except Exception:
             return False
 
-    def get_data(self, dataId: str, dataType: DataType,
-                 needSaveFile=False):
+    def get_data(self, dataId: str, dataType: DataType):
         '''
         It gets data by the given id and dataType and return data.
         If there is no such data, it returns None.
@@ -227,15 +226,13 @@ class KSRFWebSource(DataSource):
         '''
         if (not isinstance(dataType, DataType)):
             raise TypeError('dataType isn\'t instance of DataType')
-
-        if (dataType == DataType.DOCUMENT_HEADER):
-            raise ValueError("Not supported.")
-        elif dataType == DataType.DOCUMENT_TEXT:
-            text = download_decision_text(self._decision_urls[dataId],
-                                          dataId, self._temp_folder,
-                                          needReturnText=True,
-                                          needSaveTxtFile=needSaveFile)
-            self._database_source.put_data(dataId, text, dataType)
+        if dataType == DataType.DOCUMENT_TEXT:
+            text = self._database_source.get_data(dataId, dataType)
+            if (text is None):
+                text = download_decision_text(self._decition_urls[dataId],
+                                              dataId, self._temp_folder,
+                                              needReturnText=True)
+                self._database_source.put_data(dataId, text, dataType)
             return text
         raise ValueError("data type is not supported")
 
@@ -256,8 +253,10 @@ class KSRFWebSource(DataSource):
             return headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
-            return {docID: self.get_data(docID, DataType.DOCUMENT_TEXT)
-                    for docID in self._decision_urls}
+            return {dataId: self.get_data(id,
+                    DataType.DOCUMENT_TEXT)
+                    for dataId in self._decition_urls}
+        raise ValueError("data type is not supported")
 
 
 class LocalFileStorageSource(DataSource):
@@ -294,7 +293,7 @@ class LocalFileStorageSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            return self.headers[id]
+            return self.headers[dataId]
         elif (dataType == DataType.DOCUMENT_TEXT):
             textFileName = get_possible_text_location(dataId, self.FOLDER_NAME)
             if (not os.path.exists(textFileName)):
