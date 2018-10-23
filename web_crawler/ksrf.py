@@ -124,7 +124,7 @@ def get_decision_filename_by_uid(uid, foldername, ext='txt'):
     return os.path.join(foldername, uid.replace('/', '_') + '.' + ext)
 
 
-def load_resolution_text(url, id, folderName, isNeedSaveTxtFile=True,
+def load_resolution_text(url, id, folderName, isNeedSaveTxtFile=False,
                          isNeedReturnText=False):
     logo = urllib.request.urlopen(url).read()
     pathToPDF = get_decision_filename_by_uid(id, folderName, 'pdf')
@@ -160,12 +160,12 @@ def load_resolution_texts(courtSiteContent, folderName='Decision files'):
 
 def get_page_count(page, elemOnPage=20):
     countOfElem = int(page.find_class('ms-formlabel')[0].
-                    getchildren()[1].text_content().
-                    split(':')[1].strip())
+                      getchildren()[1].text_content().
+                      split(':')[1].strip())
     return m.ceil(countOfElem / elemOnPage)
 
 
-class KSRFWebSource(DataSource):
+class KSRFSource(DataSource):
     _temp_folder = 'ksrf_temp_folder'
     _decition_urls = dict()
     PAGE_COUNT = 1571  # need fix. Pip error is intended.
@@ -200,8 +200,7 @@ class KSRFWebSource(DataSource):
         except Exception:
             return False
 
-    def get_data(self, dataId: str, dataType: DataType,
-                 isNeedSaveFile=False):
+    def get_data(self, dataId: str, dataType: DataType):
         '''
         It gets data by the given id and dataType and return data.
         If there is no such data, it returns None.
@@ -210,15 +209,13 @@ class KSRFWebSource(DataSource):
         '''
         if (not isinstance(dataType, DataType)):
             raise TypeError('dataType isn\'t instance of DataType')
-
-        if (dataType == DataType.DOCUMENT_HEADER):
-            raise ValueError("Not supported.")
-        elif dataType == DataType.DOCUMENT_TEXT:
-            text = load_resolution_text(self._decition_urls[dataId],
-                                        dataId, self._temp_folder,
-                                        isNeedReturnText=True,
-                                        isNeedSaveTxtFile=isNeedSaveFile)
-            self._database_source.put_data(dataId, text, dataType)
+        if dataType == DataType.DOCUMENT_TEXT:
+            text = self._database_source.get_data(dataId, dataType)
+            if (text is None):
+                text = load_resolution_text(self._decition_urls[dataId],
+                                            dataId, self._temp_folder,
+                                            isNeedReturnText=True)
+                self._database_source.put_data(dataId, text, dataType)
             return text
         raise ValueError("data type is not supported")
 
@@ -242,6 +239,7 @@ class KSRFWebSource(DataSource):
             return {id: self.get_data(id,
                     DataType.DOCUMENT_TEXT)
                     for id in self._decition_urls}
+        raise ValueError("data type is not supported")
 
 
 class LocalFileStorageSource(DataSource):
