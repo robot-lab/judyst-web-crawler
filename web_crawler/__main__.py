@@ -1,5 +1,9 @@
-from web_crawler.ksrf import *
-from web_crawler.web_crawler import *
+if __package__:
+    from web_crawler.ksrf import *
+    from web_crawler.web_crawler import *
+else:
+    from ksrf import *
+    from web_crawler import *
 
 
 def main():
