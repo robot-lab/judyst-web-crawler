@@ -253,9 +253,9 @@ class KSRFSource(DataSource):
             return headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
-            return {id: self.get_data(id,
+            return {dataId: self.get_data(id,
                     DataType.DOCUMENT_TEXT)
-                    for id in self._decition_urls}
+                    for dataId in self._decition_urls}
         raise ValueError("data type is not supported")
 
 
@@ -293,7 +293,7 @@ class LocalFileStorageSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            return self.headers[id]
+            return self.headers[dataId]
         elif (dataType == DataType.DOCUMENT_TEXT):
             textFileName = get_possible_text_location(dataId, self.FOLDER_NAME)
             if (not os.path.exists(textFileName)):
