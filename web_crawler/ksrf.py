@@ -1,12 +1,13 @@
 # coding: utf-8
 import os
-from os import path
 from platform import system as system_name
 from subprocess import call as system_call
 import json
 import re
-import math as m
-# import libs
+import math
+
+# Import libs:
+
 import urllib.request
 # License: MIT License
 
@@ -24,7 +25,7 @@ if __package__:
 else:
     from web_crawler import DataSource, DataSourceType, DataType
 
-PATH_TO_CHROME_WEB_DRIVER = (path.dirname(__file__) +
+PATH_TO_CHROME_WEB_DRIVER = (os.path.dirname(__file__) +
                              '\\Selenium\\chromedriver.exe')
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
@@ -47,8 +48,7 @@ def ping(host):
 
 
 def get_web_driver(pathToChromeWebDriver=PATH_TO_CHROME_WEB_DRIVER,
-                   pageUri=KSRF_PAGE_URI
-                   ):
+                   pageUri=KSRF_PAGE_URI):
     options = webdriver.ChromeOptions()
     options.add_argument('headless')
     driver = webdriver.Chrome(pathToChromeWebDriver, chrome_options=options)
@@ -56,7 +56,9 @@ def get_web_driver(pathToChromeWebDriver=PATH_TO_CHROME_WEB_DRIVER,
     return driver
 
 
-def get_open_page_script_template(driver, templateKey='NUMBER'):
+def get_open_page_script_template(
+        driver: 'selenium.webdriver.chrome.webdriver.WebDriver',
+        templateKey='NUMBER'):
     page = html.document_fromstring(driver.page_source)
     template = page.find_class('UserSectionFooter ms-WPBody srch-WPBody')[0]. \
         find('td/table/tbody/tr/td/a').get('href')
@@ -80,13 +82,18 @@ typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=\d))")
 
 
-def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
+def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
     courtSiteContent = {}
     driver = get_web_driver()
     template = get_open_page_script_template(driver)
     page = html.document_fromstring(driver.page_source)
-    for i in range(2, countOfPage + 2):
+    if pagesNumber is None:
+        decisionsNumPerPage = len(page.find_class('ms-alternating') +
+                                  page.find_class('ms-vb'))
+        pagesNumber = get_pages_number(page, decisionsNumPerPage)
+
+    for i in range(2, pagesNumber + 2):
         decisions = page.find_class('ms-alternating') + \
                 page.find_class('ms-vb')
         for d in decisions:
@@ -96,15 +103,15 @@ def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
             date = d[0].text_content()
             title = d[1].text_content()
             url = d[2].getchildren()[0].get('href')
-            headerElements = {'date': date, 'type': docType,
-                              'title': title, 'url': url}
+            headerElements = {'release_date': date, 'doc_type': docType,
+                              'title': title, 'text_source_url': url}
             if decisionID not in courtSiteContent:
                 courtSiteContent[decisionID] = headerElements
             else:
                 if 'not unique' in courtSiteContent[decisionID]:
                     eggs = False
                     for header in courtSiteContent[decisionID][1]:
-                        if header['url'] == url:
+                        if header['text_source_url'] == url:
                             eggs = True
                             break
                     if not eggs:
@@ -120,55 +127,64 @@ def get_resolution_headers(countOfPage=1, sourcePrefix='КСРФ'):
     return courtSiteContent
 
 
-def get_decision_filename_by_uid(uid, foldername, ext='txt'):
-    return os.path.join(foldername, uid.replace('/', '_') + '.' + ext)
+def get_possible_text_location(docID, folderName, ext='txt'):
+    return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
 
-def load_resolution_text(url, id, folderName, isNeedSaveTxtFile=False,
-                         isNeedReturnText=False):
+def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
+                           needReturnText=False):
+    if not needSaveTxtFile and not needReturnText:
+        raise ValueError("'needSaveTxtFile' and 'needReturnText' cannot be"
+                         " equal to False at the same time")
     logo = urllib.request.urlopen(url).read()
-    pathToPDF = get_decision_filename_by_uid(id, folderName, 'pdf')
-    pathToTXT = get_decision_filename_by_uid(id, folderName, 'txt')
+    pathToPDF = get_possible_text_location(docID, folderName, 'pdf')
+    pathToTXT = get_possible_text_location(docID, folderName, 'txt')
     with open(pathToPDF, "wb") as PDFFIle:
         PDFFIle.write(logo)
     with open(pathToPDF, "rb") as PDFFIle, \
             open(pathToTXT, 'wb') as TXTFile:
         pdfminer.high_level.extract_text_to_fp(PDFFIle, TXTFile)
-    with open(pathToTXT, 'rt') as TXTFile:
+    with open(pathToTXT, 'rt', encoding='utf-8') as TXTFile:
         text = TXTFile.read()
-    if (not isNeedSaveTxtFile):
-        os.remove(pathToTXT)
     os.remove(pathToPDF)
-    if (isNeedReturnText):
-        return pathToTXT, text
-    return pathToTXT
+    if (needSaveTxtFile and needReturnText):
+        return (pathToTXT, text)
+    elif needReturnText:
+        return text
+    else:
+        return pathToTXT
 
 
-def load_resolution_texts(courtSiteContent, folderName='Decision files'):
+def download_decision_texts(courtSiteContent, folderName='Decision files'):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
     for decisionID in courtSiteContent:
         if 'not unique' in courtSiteContent[decisionID]:
             continue
-        pathToTXT = load_resolution_text(
-                courtSiteContent[decisionID]['url'],
+        pathToTXT = download_decision_text(
+                courtSiteContent[decisionID]['text_source_url'],
                 decisionID, folderName)
-        courtSiteContent[decisionID]['path to text file'] = pathToTXT
+        courtSiteContent[decisionID]['text_location'] = pathToTXT
     return courtSiteContent
 
 
-def get_page_count(page, elemOnPage=20):
+def get_pages_number(page=None, elemOnPage=20):
+    if page is None:
+        driver = get_web_driver()
+        page = html.document_fromstring(driver.page_source)
+        elemOnPage = len(page.find_class('ms-alternating') +
+                         page.find_class('ms-vb'))
+        driver.quit()
     countOfElem = int(page.find_class('ms-formlabel')[0].
                       getchildren()[1].text_content().
                       split(':')[1].strip())
-    return m.ceil(countOfElem / elemOnPage)
+    return math.ceil(countOfElem / elemOnPage)
 
 
 class KSRFSource(DataSource):
     _temp_folder = 'ksrf_temp_folder'
-    _decition_urls = dict()
-    PAGE_COUNT = 1571  # need fix. Pip error is intended.
+    _decision_urls = dict()
     _database_source = None
 
     def __init__(self, dataBaseSource):
@@ -191,12 +207,13 @@ class KSRFSource(DataSource):
             headers = self._database_source.get_all_data(
                     DataType.DOCUMENT_HEADER)
             if (headers is None):
-                headers = get_resolution_headers(self.PAGE_COUNT)
+                headers = get_decision_headers()
                 self._database_source.put_data_collection(
                     {key: json.dumps(headers[key]) for key in headers})
             else:
                 headers = json.loads(headers)
-            self._decition_urls = {id: headers[id]['url'] for id in headers}
+            self._decision_urls = {docID: headers[docID]['text_source_url']
+                                   for docID in headers}
         except Exception:
             return False
 
@@ -212,9 +229,9 @@ class KSRFSource(DataSource):
         if dataType == DataType.DOCUMENT_TEXT:
             text = self._database_source.get_data(dataId, dataType)
             if (text is None):
-                text = load_resolution_text(self._decition_urls[dataId],
-                                            dataId, self._temp_folder,
-                                            isNeedReturnText=True)
+                text = download_decision_text(self._decition_urls[dataId],
+                                              dataId, self._temp_folder,
+                                              needReturnText=True)
                 self._database_source.put_data(dataId, text, dataType)
             return text
         raise ValueError("data type is not supported")
@@ -230,7 +247,7 @@ class KSRFSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            headers = get_resolution_headers(self.PAGE_COUNT)
+            headers = get_decision_headers()
             self._database_source.\
                 put_data_collection(headers, DataType.DOCUMENT_HEADER)
             return headers
@@ -252,11 +269,11 @@ class LocalFileStorageSource(DataSource):
 
     def prepare(self):
         try:
-            if (not path.exists(self.FOLDER_NAME)):
+            if (not os.path.exists(self.FOLDER_NAME)):
                 os.mkdir(self.FOLDER_NAME)
-            headersFilePath = path.join(self.FOLDER_NAME,
-                                        self.HEADERS_FILE_NAME)
-            if (path.exists(headersFilePath)):
+            headersFilePath = os.path.join(self.FOLDER_NAME,
+                                           self.HEADERS_FILE_NAME)
+            if (os.path.exists(headersFilePath)):
                 with open(headersFilePath, 'rt') as headersFile:
                     self.headers = json.loads(headersFile.read())
 
@@ -278,9 +295,8 @@ class LocalFileStorageSource(DataSource):
         if (dataType == DataType.DOCUMENT_HEADER):
             return self.headers[id]
         elif (dataType == DataType.DOCUMENT_TEXT):
-            textFileName = get_decision_filename_by_uid(dataId,
-                                                        self.FOLDER_NAME)
-            if (not path.exists(textFileName)):
+            textFileName = get_possible_text_location(dataId, self.FOLDER_NAME)
+            if (not os.path.exists(textFileName)):
                 return None
             with open(textFileName, 'rt') as textFile:
                 text = textFile.read()
@@ -302,13 +318,12 @@ class LocalFileStorageSource(DataSource):
             return self.headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
-            return {id: self.get_data(id,
-                    DataType.DOCUMENT_TEXT)
-                    for id in self.headers}
+            return {docID: self.get_data(docID, DataType.DOCUMENT_TEXT)
+                    for docID in self.headers}
         else:
             raise ValueError("Not supported data type.")
 
-    def put_data(self, id,  data, dataType: DataType):
+    def put_data(self, docID,  data, dataType: DataType):
         '''
         Save the data in the local file.
         Supported data types:
@@ -318,12 +333,12 @@ class LocalFileStorageSource(DataSource):
         if (not isinstance(dataType, DataType)):
             raise TypeError('dataType isn\'t instance of DataType')
         if (dataType == DataType.DOCUMENT_HEADER):
-            self.headers[id] = data
+            self.headers[docID] = data
 
         elif (dataType == DataType.DOCUMENT_TEXT):
             with open(
-                 get_decision_filename_by_uid(
-                     id, self.FOLDER_NAME)) as fileTXT:
+                 get_possible_text_location(
+                     docID, self.FOLDER_NAME)) as fileTXT:
                 fileTXT.write(data)
         else:
             raise ValueError('dataType ins\t supported')
@@ -340,13 +355,12 @@ class LocalFileStorageSource(DataSource):
         for dataKey in dataDict:
             self.put_data(dataKey, dataDict[dataKey], dataType)
         if (dataType == DataType.DOCUMENT_HEADER):
-            with open(path.join(self.FOLDER_NAME,
+            with open(os.path.join(self.FOLDER_NAME,
                       self.HEADERS_FILE_NAME),
                       'wt') as headersFile:
                 headersFile.write(json.dumps(self.headers))
 
 if __name__ == '__main__':
-    print(PATH_TO_CHROME_WEB_DRIVER)
-    headersOld = get_resolution_headers(2)
+    headersOld = get_decision_headers()
     print(headersOld)
     input('press any key...')
