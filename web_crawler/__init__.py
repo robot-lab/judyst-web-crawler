@@ -5,8 +5,14 @@ if __package__:
     from web_crawler.web_crawler import WebCrawler
     from web_crawler.web_crawler\
         import DataSource, DataSourceType, DataType
-    Database_Source = ksrf.LocalFileStorageSource()
-    KSRF_Source = ksrf.KSRFSource(Database_Source)
+else:
+    import ksrf
+    from web_crawler import WebCrawler
+    from web_crawler\
+        import DataSource, DataSourceType, DataType
+Database_Source = ksrf.LocalFileStorageSource()
+KSRF_Source = ksrf.KSRFSource(Database_Source)
 
-    Crawler = WebCrawler([Database_Source, KSRF_Source])
-    __all__ = ['Crawler', 'DataSourceType', 'DataType', 'KSRF_Source']
+Crawler = WebCrawler([Database_Source, KSRF_Source])
+source = Crawler.get_data_source('KSRFsource')
+__all__ = ['Crawler', 'DataSourceType', 'DataType', 'KSRF_Source']

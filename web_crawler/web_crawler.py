@@ -70,8 +70,8 @@ class DataSource:
         return not self.__eq__(value)
 
     def __hash__(self):
-        return 9221288222353123 + self.source_name.__hash__() +\
-            self.source_type.__hash__()
+        return hash(tuple([self.source_name.__hash__(),
+                           self.source_type.__hash__()]))
 
 
 class WebCrawler:

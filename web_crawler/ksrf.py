@@ -103,7 +103,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
             date = d[0].text_content()
             title = d[1].text_content()
             url = d[2].getchildren()[0].get('href')
-            headerElements = {'release_date': date, 'doc_type': docType,
+            headerElements = {'supertype': sourcePrefix,
+                              'release_date': date, 'doc_type': docType,
                               'title': title, 'text_source_url': url}
             if decisionID not in courtSiteContent:
                 courtSiteContent[decisionID] = headerElements
@@ -131,7 +132,7 @@ def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
 
-def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
+def download_text(url, docID, folderName, needSaveTxtFile=False,
                            needReturnText=False):
     if not needSaveTxtFile and not needReturnText:
         raise ValueError("'needSaveTxtFile' and 'needReturnText' cannot be"
@@ -155,14 +156,14 @@ def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
         return pathToTXT
 
 
-def download_decision_texts(courtSiteContent, folderName='Decision files'):
+def download_all_texts(courtSiteContent, folderName='Decision files'):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
     for decisionID in courtSiteContent:
         if 'not unique' in courtSiteContent[decisionID]:
             continue
-        pathToTXT = download_decision_text(
+        pathToTXT = download_text(
                 courtSiteContent[decisionID]['text_source_url'],
                 decisionID, folderName)
         courtSiteContent[decisionID]['text_location'] = pathToTXT
@@ -204,14 +205,14 @@ class KSRFSource(DataSource):
             #res = ping(KSRF_PAGE_URI)
             # if (not res):
             #    return False
-            headers = self._database_source.get_all_data(
+            headersFromBase = self._database_source.get_all_data(
                     DataType.DOCUMENT_HEADER)
-            if (headers is None):
+            if (headersFromBase is None):
                 headers = get_decision_headers()
                 self._database_source.put_data_collection(
                     {key: json.dumps(headers[key]) for key in headers})
             else:
-                headers = json.loads(headers)
+                headers = json.loads(headersFromBase)
             self._decision_urls = {docID: headers[docID]['text_source_url']
                                    for docID in headers}
         except Exception:
@@ -229,7 +230,7 @@ class KSRFSource(DataSource):
         if dataType == DataType.DOCUMENT_TEXT:
             text = self._database_source.get_data(dataId, dataType)
             if (text is None):
-                text = download_decision_text(self._decition_urls[dataId],
+                text = download_text(self._decision_urls[dataId],
                                               dataId, self._temp_folder,
                                               needReturnText=True)
                 self._database_source.put_data(dataId, text, dataType)
@@ -255,7 +256,7 @@ class KSRFSource(DataSource):
         if (dataType == DataType.DOCUMENT_TEXT):
             return {dataId: self.get_data(id,
                     DataType.DOCUMENT_TEXT)
-                    for dataId in self._decition_urls}
+                    for dataId in self._decision_urls}
         raise ValueError("data type is not supported")
 
 
