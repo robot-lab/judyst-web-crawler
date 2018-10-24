@@ -106,4 +106,4 @@ class WebCrawler:
             if (dataSource.source_name in self.available_sources):
                 raise ValueError('names of the data sources should be unique.')
             if (res):
-                self.available_sources[dataSource.name] = dataSource
+                self.available_sources[dataSource.source_name] = dataSource
