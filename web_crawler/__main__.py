@@ -7,13 +7,13 @@ else:
 
 
 def main():
-    localStorage = LocalFileStorageSource()
-    localStorage.prepare()
-    webSource = KSRFWebSource(localStorage)
-    webSource.PAGE_COUNT = 1
-    headers = webSource.get_all_data(DataType.DOCUMENT_HEADER)
-    print(headers)
-    print(localStorage.get_data('КСРФ_36-П_2017', DataType.DOCUMENT_TEXT))
+    import ksrf
+    from web_crawler import WebCrawler
+    from web_crawler\
+        import DataSource, DataSourceType, DataType
+    Database_Source = ksrf.LocalFileStorageSource()
+    KSRF_Source = ksrf.KSRFSource(Database_Source)
 
+    Crawler = WebCrawler([Database_Source, KSRF_Source])
 
 main()

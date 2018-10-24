@@ -191,7 +191,7 @@ class KSRFSource(DataSource):
         if (not isinstance(dataBaseSource, DataSource)):
             raise TypeError('dataBaseSource should be an inheriter of\
                 DataSource class')
-        super().__init__('KSRFWebSource', DataSourceType.WEB_SOURCE)
+        super().__init__('KSRFSource', DataSourceType.WEB_SOURCE)
         self._database_source = dataBaseSource
 
     def prepare(self):
@@ -201,9 +201,9 @@ class KSRFSource(DataSource):
         It return True if all is ok.
         '''
         try:
-            res = ping(KSRF_PAGE_URI)
-            if (not res):
-                return False
+            #res = ping(KSRF_PAGE_URI)
+            # if (not res):
+            #    return False
             headers = self._database_source.get_all_data(
                     DataType.DOCUMENT_HEADER)
             if (headers is None):
@@ -315,7 +315,8 @@ class LocalFileStorageSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            return self.headers
+            if (len(self.headers) > 0):
+                return self.headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
             return {docID: self.get_data(docID, DataType.DOCUMENT_TEXT)
