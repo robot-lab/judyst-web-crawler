@@ -124,6 +124,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
                         ('not unique', notUniqueHeaders)
         page = html.document_fromstring(get_page_html_by_num(
                                                         driver, template, i))
+        if False:  # debug print:
+            print(f"Pages downloaded: {i-1}/{pagesNumber}")
     driver.quit()
     return courtSiteContent
 
@@ -156,7 +158,7 @@ def download_text(url, docID, folderName, needSaveTxtFile=False,
         return pathToTXT
 
 
-def download_all_texts(courtSiteContent, folderName='Decision files'):
+def download_all_texts(courtSiteContent, folderName='Decision files', needSaveTxtFile=True):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
@@ -165,7 +167,7 @@ def download_all_texts(courtSiteContent, folderName='Decision files'):
             continue
         pathToTXT = download_text(
                 courtSiteContent[decisionID]['text_source_url'],
-                decisionID, folderName)
+                decisionID, folderName, needSaveTxtFile=True)
         courtSiteContent[decisionID]['text_location'] = pathToTXT
     return courtSiteContent
 
