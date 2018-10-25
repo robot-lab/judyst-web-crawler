@@ -133,9 +133,12 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
 def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
+pageNumberPattern = re.compile(r"""(?:(?i)\x0c\d+|(?<=\s)(?i)\x0c(?=\s)|
+                               (?i)\x0c$)""", re.VERBOSE)
+
 
 def download_text(url, docID, folderName, needSaveTxtFile=False,
-                           needReturnText=False):
+                  needReturnText=False):
     if not needSaveTxtFile and not needReturnText:
         raise ValueError("'needSaveTxtFile' and 'needReturnText' cannot be"
                          " equal to False at the same time")
@@ -148,7 +151,8 @@ def download_text(url, docID, folderName, needSaveTxtFile=False,
             open(pathToTXT, 'wb') as TXTFile:
         pdfminer.high_level.extract_text_to_fp(PDFFIle, TXTFile)
     with open(pathToTXT, 'rt', encoding='utf-8') as TXTFile:
-        text = TXTFile.read()
+        rawText = TXTFile.read()
+    text = pageNumberPattern.sub('', rawText)
     os.remove(pathToPDF)
     if (needSaveTxtFile and needReturnText):
         return (pathToTXT, text)
@@ -158,7 +162,8 @@ def download_text(url, docID, folderName, needSaveTxtFile=False,
         return pathToTXT
 
 
-def download_all_texts(courtSiteContent, folderName='Decision files', needSaveTxtFile=True):
+def download_all_texts(courtSiteContent, folderName='Decision files',
+                       needSaveTxtFile=True):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
@@ -204,7 +209,7 @@ class KSRFSource(DataSource):
         It return True if all is ok.
         '''
         try:
-            #res = ping(KSRF_PAGE_URI)
+            # res = ping(KSRF_PAGE_URI)
             # if (not res):
             #    return False
             headersFromBase = self._database_source.get_all_data(
@@ -233,8 +238,8 @@ class KSRFSource(DataSource):
             text = self._database_source.get_data(dataId, dataType)
             if (text is None):
                 text = download_text(self._decision_urls[dataId],
-                                              dataId, self._temp_folder,
-                                              needReturnText=True)
+                                     dataId, self._temp_folder,
+                                     needReturnText=True)
                 self._database_source.put_data(dataId, text, dataType)
             return text
         raise ValueError("data type is not supported")
