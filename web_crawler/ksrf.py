@@ -133,8 +133,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
 def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
-pageNumberPattern = re.compile(r"""(?:(?i)\x0c\d+|(?<=\s)(?i)\x0c(?=\s)|
-                               (?i)\x0c$)""", re.VERBOSE)
+pageNumberPattern = re.compile(r"""(?:(?i)\x0c\s*\d+|\x0c(?=\s)|
+                               (?i)\x0c\s*$)""", re.VERBOSE)
 
 
 def del_NP_and_pageNums(textForProccessing):
