@@ -14,6 +14,8 @@ Database_Source = ksrf.LocalFileStorageSource()
 KSRF_Source = ksrf.KSRFSource(Database_Source)
 
 Crawler = WebCrawler([Database_Source, KSRF_Source])
+Crawler.prepare_sources(['LocalFileStorage', 'KSRFSource'])
+
 # Crawler.prepare_sources()
 # source = Crawler.get_data_source('KSRFsource')
 __all__ = ['Crawler', 'DataSourceType', 'DataType', 'KSRF_Source']

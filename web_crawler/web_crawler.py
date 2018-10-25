@@ -95,9 +95,7 @@ class WebCrawler:
 
     def __init__(self, dataSources: list):
         '''
-        It try to initialize all existing data sources and
-        choose for available_source sources which is
-        succesffully prepared for work.
+        It adding give dataSources to collected_sources
         '''
         for dataSource in dataSources:
             if (not isinstance(dataSource, DataSource)):
@@ -107,20 +105,20 @@ class WebCrawler:
                 raise ValueError('names of the data sources should be unique.')
             self.collected_sources[dataSource.source_name] = dataSource
 
+    def _prepare_source(self, dataSource):
+        if (dataSource.source_name not in self.available_sources):
+                res = dataSource.prepare()
+                if (res):
+                    self.available_sources[
+                        dataSource.source_name] = dataSource
+
     def prepare_sources(self, sourcesNameList=None):
         if (sourcesNameList is None):
             for name in self.collected_sources:
                 dataSource = self.collected_sources[name]
-                if (name not in self.available_sources):
-                    res = dataSource.prepare()
-                    if (res):
-                        self.available_sources[
-                            dataSource.source_name] = dataSource
+                self._prepare_source(dataSource)
         else:
-            for dataSource in self.collected_sources:
-                if dataSource.source_name in sourcesNameList and\
-                        dataSource not in self.available_sources:
-                    res = dataSource.prepare()
-                    if (res):
-                        self.available_sources[
-                            dataSource.source_name](dataSource)
+            for name in self.collected_sources:
+                dataSource = self.collected_sources[name]
+                if dataSource.source_name in sourcesNameList:
+                    self._prepare_source(dataSource)
