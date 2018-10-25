@@ -124,12 +124,22 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
                         ('not unique', notUniqueHeaders)
         page = html.document_fromstring(get_page_html_by_num(
                                                         driver, template, i))
+        if False:  # debug print:
+            print(f"Pages downloaded: {i-1}/{pagesNumber}")
     driver.quit()
     return courtSiteContent
 
 
 def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
+
+pageNumberPattern = re.compile(r"""(?:(?i)\x0c\d+|(?<=\s)(?i)\x0c(?=\s)|
+                               (?i)\x0c$)""", re.VERBOSE)
+
+
+def del_NP_and_pageNums(textForProccessing):
+    text = pageNumberPattern.sub('', textForProccessing)
+    return text
 
 
 def download_text(url, docID, folderName, needSaveTxtFile=False,
@@ -146,7 +156,8 @@ def download_text(url, docID, folderName, needSaveTxtFile=False,
             open(pathToTXT, 'wb') as TXTFile:
         pdfminer.high_level.extract_text_to_fp(PDFFIle, TXTFile)
     with open(pathToTXT, 'rt', encoding='utf-8') as TXTFile:
-        text = TXTFile.read()
+        rawText = TXTFile.read()
+    text = pageNumberPattern.sub('', rawText)
     os.remove(pathToPDF)
     if (needSaveTxtFile and needReturnText):
         return (pathToTXT, text)
@@ -156,7 +167,8 @@ def download_text(url, docID, folderName, needSaveTxtFile=False,
         return pathToTXT
 
 
-def download_all_texts(courtSiteContent, folderName='Decision files'):
+def download_all_texts(courtSiteContent, folderName='Decision files',
+                       needSaveTxtFile=True):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
@@ -165,7 +177,7 @@ def download_all_texts(courtSiteContent, folderName='Decision files'):
             continue
         pathToTXT = download_text(
                 courtSiteContent[decisionID]['text_source_url'],
-                decisionID, folderName)
+                decisionID, folderName, needSaveTxtFile=True)
         courtSiteContent[decisionID]['text_location'] = pathToTXT
     return courtSiteContent
 
@@ -215,7 +227,8 @@ class KSRFSource(DataSource):
                     put_data_collection(headersJson,
                                         DataType.DOCUMENT_HEADER)
             else:
-                headers = {uid: json.loads(headersFromBase[uid]) for uid in headersFromBase} 
+                headers = {uid: json.loads(headersFromBase[uid])
+                           for uid in headersFromBase} 
             self._decision_urls = {docID: headers[docID]['text_source_url']
                                    for docID in headers}
             return True
