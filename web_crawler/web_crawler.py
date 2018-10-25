@@ -124,4 +124,3 @@ class WebCrawler:
                     if (res):
                         self.available_sources[
                             dataSource.source_name](dataSource)
-

@@ -221,7 +221,7 @@ class KSRFSource(DataSource):
                     DataType.DOCUMENT_HEADER)
             if (headersFromBase is None or len(headersFromBase) == 0):
                 headers = get_decision_headers()
-                headersJson = {key: json.dumps(headers[key])\
+                headersJson = {key: json.dumps(headers[key])
                                for key in headers}
                 self._database_source.\
                     put_data_collection(headersJson,
@@ -295,9 +295,6 @@ class LocalFileStorageSource(DataSource):
 
     def prepare(self):
         try:
-            self.folder_path = os.path.join(os.path.dirname(
-                                            os.path.dirname(__file__)),
-                                            self.folder_path)
             if (not os.path.exists(self.folder_path)):
                 os.mkdir(self.folder_path)
             headersFilePath = os.path.join(self.folder_path,
