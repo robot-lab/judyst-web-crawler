@@ -82,6 +82,7 @@ class WebCrawler:
     For requesting any data use DataSource types.
     '''
     available_sources = dict()
+    collected_sources = dict()
 
     def get_data_source(self, name: str):
         '''
@@ -102,8 +103,25 @@ class WebCrawler:
             if (not isinstance(dataSource, DataSource)):
                 raise TypeError('dataSources\'s elements should be\
                     instances of DataSource class')
-            res = dataSource.prepare()
-            if (dataSource.source_name in self.available_sources):
+            if (dataSource.source_name in self.collected_sources):
                 raise ValueError('names of the data sources should be unique.')
-            if (res):
-                self.available_sources[dataSource.source_name] = dataSource
+            self.collected_sources[dataSource.source_name] = dataSource
+
+    def prepare_sources(self, sourcesNameList=None):
+        if (sourcesNameList is None):
+            for name in self.collected_sources:
+                dataSource = self.collected_sources[name]
+                if (name not in self.available_sources):
+                    res = dataSource.prepare()
+                    if (res):
+                        self.available_sources[
+                            dataSource.source_name] = dataSource
+        else:
+            for dataSource in self.collected_sources:
+                if dataSource.source_name in sourcesNameList and\
+                        dataSource not in self.available_sources:
+                    res = dataSource.prepare()
+                    if (res):
+                        self.available_sources[
+                            dataSource.source_name](dataSource)
+
