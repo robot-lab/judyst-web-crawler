@@ -137,6 +137,11 @@ pageNumberPattern = re.compile(r"""(?:(?i)\x0c\d+|(?<=\s)(?i)\x0c(?=\s)|
                                (?i)\x0c$)""", re.VERBOSE)
 
 
+def del_NP_and_pageNums(textForProccessing):
+    text = pageNumberPattern.sub('', textForProccessing)
+    return text
+
+
 def download_text(url, docID, folderName, needSaveTxtFile=False,
                   needReturnText=False):
     if not needSaveTxtFile and not needReturnText:
