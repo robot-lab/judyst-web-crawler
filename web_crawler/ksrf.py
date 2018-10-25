@@ -219,14 +219,19 @@ class KSRFSource(DataSource):
             #    return False
             headersFromBase = self._database_source.get_all_data(
                     DataType.DOCUMENT_HEADER)
-            if (headersFromBase is None):
+            if (headersFromBase is None or len(headersFromBase) == 0):
                 headers = get_decision_headers()
-                self._database_source.put_data_collection(
-                    {key: json.dumps(headers[key]) for key in headers})
+                headersJson = {key: json.dumps(headers[key])\
+                               for key in headers}
+                self._database_source.\
+                    put_data_collection(headersJson,
+                                        DataType.DOCUMENT_HEADER)
             else:
-                headers = json.loads(headersFromBase)
+                headers = {uid: json.loads(headersFromBase[uid])
+                           for uid in headersFromBase} 
             self._decision_urls = {docID: headers[docID]['text_source_url']
                                    for docID in headers}
+            return True
         except Exception:
             return False
 
@@ -249,7 +254,7 @@ class KSRFSource(DataSource):
             return text
         raise ValueError("data type is not supported")
 
-    def get_all_data(self, dataType: DataType):
+    def get_all_data(self, dataType: DataType, needReload=False):
         '''
         Get's list of dict of all data of the given type.
         Supported data types:
@@ -260,9 +265,17 @@ class KSRFSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            headers = get_decision_headers()
-            self._database_source.\
-                put_data_collection(headers, DataType.DOCUMENT_HEADER)
+            if (needReload):
+                headers = get_decision_headers()
+                self._database_source.\
+                    put_data_collection(headers, DataType.DOCUMENT_HEADER)
+            else:
+                headers = self._database_source.get_all_data(
+                          DataType.DOCUMENT_HEADER)
+                if (headers is None or len(headers) == 0):
+                    headers = get_decision_headers()
+                    self._database_source.\
+                        put_data_collection(headers, DataType.DOCUMENT_HEADER)
             return headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
@@ -274,7 +287,7 @@ class KSRFSource(DataSource):
 
 class LocalFileStorageSource(DataSource):
     headers = dict()
-    FOLDER_NAME = 'ksrf_temp_folder'
+    folder_path = 'ksrf_temp_folder'
     HEADERS_FILE_NAME = 'headers.json'
 
     def __init__(self):
@@ -282,9 +295,12 @@ class LocalFileStorageSource(DataSource):
 
     def prepare(self):
         try:
-            if (not os.path.exists(self.FOLDER_NAME)):
-                os.mkdir(self.FOLDER_NAME)
-            headersFilePath = os.path.join(self.FOLDER_NAME,
+            self.folder_path = os.path.join(os.path.dirname(
+                                            os.path.dirname(__file__)),
+                                            self.folder_path)
+            if (not os.path.exists(self.folder_path)):
+                os.mkdir(self.folder_path)
+            headersFilePath = os.path.join(self.folder_path,
                                            self.HEADERS_FILE_NAME)
             if (os.path.exists(headersFilePath)):
                 with open(headersFilePath, 'rt') as headersFile:
@@ -308,7 +324,7 @@ class LocalFileStorageSource(DataSource):
         if (dataType == DataType.DOCUMENT_HEADER):
             return self.headers[dataId]
         elif (dataType == DataType.DOCUMENT_TEXT):
-            textFileName = get_possible_text_location(dataId, self.FOLDER_NAME)
+            textFileName = get_possible_text_location(dataId, self.folder_path)
             if (not os.path.exists(textFileName)):
                 return None
             with open(textFileName, 'rt') as textFile:
@@ -330,6 +346,8 @@ class LocalFileStorageSource(DataSource):
         if (dataType == DataType.DOCUMENT_HEADER):
             if (len(self.headers) > 0):
                 return self.headers
+            else:
+                return None
 
         if (dataType == DataType.DOCUMENT_TEXT):
             return {docID: self.get_data(docID, DataType.DOCUMENT_TEXT)
@@ -352,7 +370,7 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             with open(
                  get_possible_text_location(
-                     docID, self.FOLDER_NAME)) as fileTXT:
+                     docID, self.folder_path)) as fileTXT:
                 fileTXT.write(data)
         else:
             raise ValueError('dataType ins\t supported')
@@ -369,7 +387,7 @@ class LocalFileStorageSource(DataSource):
         for dataKey in dataDict:
             self.put_data(dataKey, dataDict[dataKey], dataType)
         if (dataType == DataType.DOCUMENT_HEADER):
-            with open(os.path.join(self.FOLDER_NAME,
+            with open(os.path.join(self.folder_path,
                       self.HEADERS_FILE_NAME),
                       'wt') as headersFile:
                 headersFile.write(json.dumps(self.headers))
