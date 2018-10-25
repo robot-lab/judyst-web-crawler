@@ -227,10 +227,14 @@ class KSRFSource(DataSource):
                     put_data_collection(headersJson,
                                         DataType.DOCUMENT_HEADER)
             else:
-                headers = {uid: json.loads(headersFromBase[uid])
-                           for uid in headersFromBase} 
-            self._decision_urls = {docID: headers[docID]['text_source_url']
-                                   for docID in headers}
+                headers = headersFromBase
+            
+            self._decision_urls = {}
+            for dataId in headers:
+                elem = headers[dataId]
+                if ('not unique' in elem):
+                    continue #todo
+                self._decision_urls[dataId] = elem['text_source_url']
             return True
         except Exception:
             return False
@@ -288,7 +292,7 @@ class KSRFSource(DataSource):
 class LocalFileStorageSource(DataSource):
     headers = dict()
     folder_path = 'ksrf_temp_folder'
-    HEADERS_FILE_NAME = 'headers.json'
+    HEADERS_FILE_NAME = 'DecisionHeaders.json'
 
     def __init__(self):
         super().__init__('LocalFileStorage', DataSourceType.DATABASE)
@@ -300,8 +304,12 @@ class LocalFileStorageSource(DataSource):
             headersFilePath = os.path.join(self.folder_path,
                                            self.HEADERS_FILE_NAME)
             if (os.path.exists(headersFilePath)):
-                with open(headersFilePath, 'rt') as headersFile:
+                with open(headersFilePath, 'rt', encoding='utf-8')\
+                    as headersFile:
                     self.headers = json.loads(headersFile.read())
+                    self.headers = {uid: self.headers[uid]
+                                    for uid in self.headers
+                                    if 'not unique' not in self.headers[uid]}
 
         except:
             return False
@@ -324,7 +332,7 @@ class LocalFileStorageSource(DataSource):
             textFileName = get_possible_text_location(dataId, self.folder_path)
             if (not os.path.exists(textFileName)):
                 return None
-            with open(textFileName, 'rt') as textFile:
+            with open(textFileName, 'rt', encoding='utf-8') as textFile:
                 text = textFile.read()
             return text
         else:

@@ -12,9 +12,10 @@ else:
         import DataSource, DataSourceType, DataType
 Database_Source = ksrf.LocalFileStorageSource()
 KSRF_Source = ksrf.KSRFSource(Database_Source)
-
 Crawler = WebCrawler([Database_Source, KSRF_Source])
-Crawler.prepare_sources(['LocalFileStorage', 'KSRFSource'])
+# Crawler.collected_sources['LocalFileStorage'].folder_path = \
+#     'D:\\programming\\Judyst\\files'
+# Crawler.prepare_sources(['LocalFileStorage', 'KSRFSource'])
 
 # Crawler.prepare_sources()
 # source = Crawler.get_data_source('KSRFsource')
