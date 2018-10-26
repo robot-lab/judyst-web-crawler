@@ -25,8 +25,8 @@ if __package__:
 else:
     from web_crawler import DataSource, DataSourceType, DataType
 
-PATH_TO_CHROME_WEB_DRIVER = (os.path.dirname(__file__) +
-                             '\\Selenium\\chromedriver.exe')
+PATH_TO_CHROME_WEB_DRIVER = os.path.join(os.path.dirname(__file__),
+                             'Selenium','chromedriver.exe')
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
 
@@ -57,7 +57,7 @@ def get_web_driver(pathToChromeWebDriver=PATH_TO_CHROME_WEB_DRIVER,
 
 
 def get_open_page_script_template(
-        driver: 'selenium.webdriver.chrome.webdriver.WebDriver',
+        driver,
         templateKey='NUMBER'):
     page = html.document_fromstring(driver.page_source)
     template = page.find_class('UserSectionFooter ms-WPBody srch-WPBody')[0]. \
