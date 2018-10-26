@@ -105,20 +105,22 @@ class WebCrawler:
                 raise ValueError('names of the data sources should be unique.')
             self.collected_sources[dataSource.source_name] = dataSource
 
-    def _prepare_source(self, dataSource):
+    def _prepare_source(self, dataSource, databaseSource):
         if (dataSource.source_name not in self.available_sources):
+                if ('set_database' in dir(dataSource)):
+                    dataSource.set_database(databaseSource)
                 res = dataSource.prepare()
                 if (res):
                     self.available_sources[
                         dataSource.source_name] = dataSource
 
-    def prepare_sources(self, sourcesNameList=None):
+    def prepare_sources(self, sourcesNameList=None, databaseSource=None):
         if (sourcesNameList is None):
             for name in self.collected_sources:
                 dataSource = self.collected_sources[name]
-                self._prepare_source(dataSource)
+                self._prepare_source(dataSource, databaseSource)
         else:
             for name in self.collected_sources:
                 dataSource = self.collected_sources[name]
                 if dataSource.source_name in sourcesNameList:
-                    self._prepare_source(dataSource)
+                    self._prepare_source(dataSource, databaseSource)
