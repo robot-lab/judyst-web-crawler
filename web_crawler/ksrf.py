@@ -81,6 +81,7 @@ typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=/)|[А-Яа-я][-А-Яа-я]*(?=\.)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=\d))")
 
+pdfNumberPattern = re.compile(r"(?<=[A-Za-z])\d+")
 
 def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
@@ -93,6 +94,7 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
                                   page.find_class('ms-vb'))
         pagesNumber = get_pages_number(page, decisionsNumPerPage)
 
+    dupDict = {}
     for i in range(2, pagesNumber + 2):
         decisions = page.find_class('ms-alternating') + \
                 page.find_class('ms-vb')
@@ -106,25 +108,27 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
             headerElements = {'supertype': sourcePrefix,
                               'release_date': date, 'doc_type': docType,
                               'title': title, 'text_source_url': url}
-            if decisionID not in courtSiteContent:
+            if decisionID not in courtSiteContent and decisionID not in dupDict:
                 courtSiteContent[decisionID] = headerElements
             else:
-                if 'not unique' in courtSiteContent[decisionID]:
-                    eggs = False
-                    for header in courtSiteContent[decisionID][1]:
-                        if header['text_source_url'] == url:
-                            eggs = True
-                            break
-                    if not eggs:
-                        courtSiteContent[decisionID][1].append(headerElements)
-                else:
-                    notUniqueHeaders = \
-                        [courtSiteContent[decisionID], headerElements]
-                    courtSiteContent[decisionID] = \
-                        ('not unique', notUniqueHeaders)
+                if decisionID not in dupDict:
+                    alreadyAddedUrl=courtSiteContent[decisionID]['text_source_url']
+                    alreadyAddedNewDecID = decisionID + f'/{pdfNumberPattern.search(alreadyAddedUrl)[0]}-DUP'
+                    dupDict[decisionID]=[courtSiteContent[decisionID]]
+                    courtSiteContent[alreadyAddedNewDecID] = courtSiteContent[decisionID]
+                    del courtSiteContent[decisionID]
+                eggs = False
+                for header in dupDict[decisionID]:
+                    if header['text_source_url'] == url:
+                        eggs = True
+                        break
+                if not eggs:
+                    newDecID = decisionID + f'/{pdfNumberPattern.search(url)[0]}-DUP'
+                    dupDict[decisionID].append(headerElements)
+                    courtSiteContent[newDecID] = headerElements
         page = html.document_fromstring(get_page_html_by_num(
                                                         driver, template, i))
-        if False:  # debug print:
+        if True:  # debug print:
             print(f"Pages downloaded: {i-1}/{pagesNumber}")
     driver.quit()
     return courtSiteContent
@@ -377,7 +381,7 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             with open(
                  get_possible_text_location(
-                     docID, self.folder_path)) as fileTXT:
+                     docID, self.folder_path), 'wt', encoding='utf-8') as fileTXT:
                 fileTXT.write(data)
         else:
             raise ValueError('dataType ins\t supported')
@@ -396,7 +400,7 @@ class LocalFileStorageSource(DataSource):
         if (dataType == DataType.DOCUMENT_HEADER):
             with open(os.path.join(self.folder_path,
                       self.HEADERS_FILE_NAME),
-                      'wt') as headersFile:
+                      'wt', encoding='utf-8') as headersFile:
                 headersFile.write(json.dumps(self.headers))
 
 if __name__ == '__main__':
