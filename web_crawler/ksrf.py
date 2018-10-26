@@ -221,10 +221,8 @@ class KSRFSource(DataSource):
                     DataType.DOCUMENT_HEADER)
             if (headersFromBase is None or len(headersFromBase) == 0):
                 headers = get_decision_headers()
-                headersJson = {key: json.dumps(headers[key])
-                               for key in headers}
                 self._database_source.\
-                    put_data_collection(headersJson,
+                    put_data_collection(headers,
                                         DataType.DOCUMENT_HEADER)
             else:
                 headers = headersFromBase
@@ -306,10 +304,10 @@ class LocalFileStorageSource(DataSource):
             if (os.path.exists(headersFilePath)):
                 with open(headersFilePath, 'rt', encoding='utf-8')\
                     as headersFile:
-                    self.headers = json.loads(headersFile.read())
-                    self.headers = {uid: self.headers[uid]
-                                    for uid in self.headers
-                                    if 'not unique' not in self.headers[uid]}
+                    headers = json.loads(headersFile.read())
+                    self.headers = {uid: headers[uid]
+                                    for uid in headers
+                                    if 'not unique' not in headers[uid]}
 
         except:
             return False
@@ -331,10 +329,14 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             textFileName = get_possible_text_location(dataId, self.folder_path)
             if (not os.path.exists(textFileName)):
-                return None
+                text = download_text(self.headers[dataId]['text_source_url'], dataId, self.folder_path, True, True)[1]
             with open(textFileName, 'rt', encoding='utf-8') as textFile:
                 text = textFile.read()
-            return text
+            
+            if text is None:
+                raise ValueError("Can't get text")
+            else:
+                return text
         else:
             raise ValueError("Not supported data type")
 
