@@ -70,8 +70,8 @@ class DataSource:
         return not self.__eq__(value)
 
     def __hash__(self):
-        return 9221288222353123 + self.source_name.__hash__() +\
-            self.source_type.__hash__()
+        return hash(tuple([self.source_name.__hash__(),
+                           self.source_type.__hash__()]))
 
 
 class WebCrawler:
@@ -82,6 +82,7 @@ class WebCrawler:
     For requesting any data use DataSource types.
     '''
     available_sources = dict()
+    collected_sources = dict()
 
     def get_data_source(self, name: str):
         '''
@@ -94,16 +95,30 @@ class WebCrawler:
 
     def __init__(self, dataSources: list):
         '''
-        It try to initialize all existing data sources and
-        choose for available_source sources which is
-        succesffully prepared for work.
+        It adding give dataSources to collected_sources
         '''
         for dataSource in dataSources:
             if (not isinstance(dataSource, DataSource)):
                 raise TypeError('dataSources\'s elements should be\
                     instances of DataSource class')
-            res = dataSource.prepare()
-            if (dataSource.source_name in self.available_sources):
+            if (dataSource.source_name in self.collected_sources):
                 raise ValueError('names of the data sources should be unique.')
-            if (res):
-                self.available_sources[dataSource.name] = dataSource
+            self.collected_sources[dataSource.source_name] = dataSource
+
+    def _prepare_source(self, dataSource):
+        if (dataSource.source_name not in self.available_sources):
+                res = dataSource.prepare()
+                if (res):
+                    self.available_sources[
+                        dataSource.source_name] = dataSource
+
+    def prepare_sources(self, sourcesNameList=None):
+        if (sourcesNameList is None):
+            for name in self.collected_sources:
+                dataSource = self.collected_sources[name]
+                self._prepare_source(dataSource)
+        else:
+            for name in self.collected_sources:
+                dataSource = self.collected_sources[name]
+                if dataSource.source_name in sourcesNameList:
+                    self._prepare_source(dataSource)

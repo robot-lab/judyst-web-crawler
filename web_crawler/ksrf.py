@@ -103,7 +103,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
             date = d[0].text_content()
             title = d[1].text_content()
             url = d[2].getchildren()[0].get('href')
-            headerElements = {'release_date': date, 'doc_type': docType,
+            headerElements = {'supertype': sourcePrefix,
+                              'release_date': date, 'doc_type': docType,
                               'title': title, 'text_source_url': url}
             if decisionID not in courtSiteContent:
                 courtSiteContent[decisionID] = headerElements
@@ -123,6 +124,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
                         ('not unique', notUniqueHeaders)
         page = html.document_fromstring(get_page_html_by_num(
                                                         driver, template, i))
+        if False:  # debug print:
+            print(f"Pages downloaded: {i-1}/{pagesNumber}")
     driver.quit()
     return courtSiteContent
 
@@ -130,9 +133,17 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
 def get_possible_text_location(docID, folderName, ext='txt'):
     return os.path.join(folderName, docID.replace('/', '_') + '.' + ext)
 
+pageNumberPattern = re.compile(r"""(?:(?i)\x0c\s*\d+|\x0c(?=\s)|
+                               (?i)\x0c\s*$)""", re.VERBOSE)
 
-def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
-                           needReturnText=False):
+
+def del_NP_and_pageNums(textForProccessing):
+    text = pageNumberPattern.sub('', textForProccessing)
+    return text
+
+
+def download_text(url, docID, folderName, needSaveTxtFile=False,
+                  needReturnText=False):
     if not needSaveTxtFile and not needReturnText:
         raise ValueError("'needSaveTxtFile' and 'needReturnText' cannot be"
                          " equal to False at the same time")
@@ -145,7 +156,8 @@ def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
             open(pathToTXT, 'wb') as TXTFile:
         pdfminer.high_level.extract_text_to_fp(PDFFIle, TXTFile)
     with open(pathToTXT, 'rt', encoding='utf-8') as TXTFile:
-        text = TXTFile.read()
+        rawText = TXTFile.read()
+    text = pageNumberPattern.sub('', rawText)
     os.remove(pathToPDF)
     if (needSaveTxtFile and needReturnText):
         return (pathToTXT, text)
@@ -155,16 +167,17 @@ def download_decision_text(url, docID, folderName, needSaveTxtFile=False,
         return pathToTXT
 
 
-def download_decision_texts(courtSiteContent, folderName='Decision files'):
+def download_all_texts(courtSiteContent, folderName='Decision files',
+                       needSaveTxtFile=True):
     # TO DO: check for downloading and converting
     if not os.path.exists(folderName):
         os.mkdir(folderName)
     for decisionID in courtSiteContent:
         if 'not unique' in courtSiteContent[decisionID]:
             continue
-        pathToTXT = download_decision_text(
+        pathToTXT = download_text(
                 courtSiteContent[decisionID]['text_source_url'],
-                decisionID, folderName)
+                decisionID, folderName, needSaveTxtFile=True)
         courtSiteContent[decisionID]['text_location'] = pathToTXT
     return courtSiteContent
 
@@ -191,7 +204,7 @@ class KSRFSource(DataSource):
         if (not isinstance(dataBaseSource, DataSource)):
             raise TypeError('dataBaseSource should be an inheriter of\
                 DataSource class')
-        super().__init__('KSRFWebSource', DataSourceType.WEB_SOURCE)
+        super().__init__('KSRFSource', DataSourceType.WEB_SOURCE)
         self._database_source = dataBaseSource
 
     def prepare(self):
@@ -201,19 +214,26 @@ class KSRFSource(DataSource):
         It return True if all is ok.
         '''
         try:
-            res = ping(KSRF_PAGE_URI)
-            if (not res):
-                return False
-            headers = self._database_source.get_all_data(
+            # res = ping(KSRF_PAGE_URI)
+            # if (not res):
+            #    return False
+            headersFromBase = self._database_source.get_all_data(
                     DataType.DOCUMENT_HEADER)
-            if (headers is None):
+            if (headersFromBase is None or len(headersFromBase) == 0):
                 headers = get_decision_headers()
-                self._database_source.put_data_collection(
-                    {key: json.dumps(headers[key]) for key in headers})
+                self._database_source.\
+                    put_data_collection(headers,
+                                        DataType.DOCUMENT_HEADER)
             else:
-                headers = json.loads(headers)
-            self._decision_urls = {docID: headers[docID]['text_source_url']
-                                   for docID in headers}
+                headers = headersFromBase
+            
+            self._decision_urls = {}
+            for dataId in headers:
+                elem = headers[dataId]
+                if ('not unique' in elem):
+                    continue #todo
+                self._decision_urls[dataId] = elem['text_source_url']
+            return True
         except Exception:
             return False
 
@@ -229,14 +249,14 @@ class KSRFSource(DataSource):
         if dataType == DataType.DOCUMENT_TEXT:
             text = self._database_source.get_data(dataId, dataType)
             if (text is None):
-                text = download_decision_text(self._decition_urls[dataId],
-                                              dataId, self._temp_folder,
-                                              needReturnText=True)
+                text = download_text(self._decision_urls[dataId],
+                                     dataId, self._temp_folder,
+                                     needReturnText=True)
                 self._database_source.put_data(dataId, text, dataType)
             return text
         raise ValueError("data type is not supported")
 
-    def get_all_data(self, dataType: DataType):
+    def get_all_data(self, dataType: DataType, needReload=False):
         '''
         Get's list of dict of all data of the given type.
         Supported data types:
@@ -247,35 +267,47 @@ class KSRFSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            headers = get_decision_headers()
-            self._database_source.\
-                put_data_collection(headers, DataType.DOCUMENT_HEADER)
+            if (needReload):
+                headers = get_decision_headers()
+                self._database_source.\
+                    put_data_collection(headers, DataType.DOCUMENT_HEADER)
+            else:
+                headers = self._database_source.get_all_data(
+                          DataType.DOCUMENT_HEADER)
+                if (headers is None or len(headers) == 0):
+                    headers = get_decision_headers()
+                    self._database_source.\
+                        put_data_collection(headers, DataType.DOCUMENT_HEADER)
             return headers
 
         if (dataType == DataType.DOCUMENT_TEXT):
             return {dataId: self.get_data(id,
                     DataType.DOCUMENT_TEXT)
-                    for dataId in self._decition_urls}
+                    for dataId in self._decision_urls}
         raise ValueError("data type is not supported")
 
 
 class LocalFileStorageSource(DataSource):
     headers = dict()
-    FOLDER_NAME = 'ksrf_temp_folder'
-    HEADERS_FILE_NAME = 'headers.json'
+    folder_path = 'ksrf_temp_folder'
+    HEADERS_FILE_NAME = 'DecisionHeaders.json'
 
     def __init__(self):
         super().__init__('LocalFileStorage', DataSourceType.DATABASE)
 
     def prepare(self):
         try:
-            if (not os.path.exists(self.FOLDER_NAME)):
-                os.mkdir(self.FOLDER_NAME)
-            headersFilePath = os.path.join(self.FOLDER_NAME,
+            if (not os.path.exists(self.folder_path)):
+                os.mkdir(self.folder_path)
+            headersFilePath = os.path.join(self.folder_path,
                                            self.HEADERS_FILE_NAME)
             if (os.path.exists(headersFilePath)):
-                with open(headersFilePath, 'rt') as headersFile:
-                    self.headers = json.loads(headersFile.read())
+                with open(headersFilePath, 'rt', encoding='utf-8')\
+                    as headersFile:
+                    headers = json.loads(headersFile.read())
+                    self.headers = {uid: headers[uid]
+                                    for uid in headers
+                                    if 'not unique' not in headers[uid]}
 
         except:
             return False
@@ -295,12 +327,16 @@ class LocalFileStorageSource(DataSource):
         if (dataType == DataType.DOCUMENT_HEADER):
             return self.headers[dataId]
         elif (dataType == DataType.DOCUMENT_TEXT):
-            textFileName = get_possible_text_location(dataId, self.FOLDER_NAME)
+            textFileName = get_possible_text_location(dataId, self.folder_path)
             if (not os.path.exists(textFileName)):
-                return None
-            with open(textFileName, 'rt') as textFile:
+                text = download_text(self.headers[dataId]['text_source_url'], dataId, self.folder_path, True, True)[1]
+            with open(textFileName, 'rt', encoding='utf-8') as textFile:
                 text = textFile.read()
-            return text
+            
+            if text is None:
+                raise ValueError("Can't get text")
+            else:
+                return text
         else:
             raise ValueError("Not supported data type")
 
@@ -315,7 +351,10 @@ class LocalFileStorageSource(DataSource):
             raise TypeError('dataType isn\'t instance of DataType')
 
         if (dataType == DataType.DOCUMENT_HEADER):
-            return self.headers
+            if (len(self.headers) > 0):
+                return self.headers
+            else:
+                return None
 
         if (dataType == DataType.DOCUMENT_TEXT):
             return {docID: self.get_data(docID, DataType.DOCUMENT_TEXT)
@@ -338,7 +377,7 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             with open(
                  get_possible_text_location(
-                     docID, self.FOLDER_NAME)) as fileTXT:
+                     docID, self.folder_path)) as fileTXT:
                 fileTXT.write(data)
         else:
             raise ValueError('dataType ins\t supported')
@@ -355,7 +394,7 @@ class LocalFileStorageSource(DataSource):
         for dataKey in dataDict:
             self.put_data(dataKey, dataDict[dataKey], dataType)
         if (dataType == DataType.DOCUMENT_HEADER):
-            with open(os.path.join(self.FOLDER_NAME,
+            with open(os.path.join(self.folder_path,
                       self.HEADERS_FILE_NAME),
                       'wt') as headersFile:
                 headersFile.write(json.dumps(self.headers))
