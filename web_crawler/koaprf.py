@@ -262,10 +262,11 @@ def get_codex_content():
             )
         chapterHeaders.update(
             get_subheaders_from_page(
-                codexSectionPage, sectionHeaders[key], key, CHAPTER_SIGN, HOST,
+                codexSectionPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX, CHAPTER_SIGN, HOST,
                 chapterNumberPattern, baseHeader
                 )
             )
+        chaptersUpkey = dict.fromkeys(chapterHeaders.keys(), key)
     codexHeaders.update(chapterHeaders)
     # end of chapters processing
 
@@ -275,14 +276,15 @@ def get_codex_content():
         upkey = upperLevelKeyPattern.search(key)[0]
         codexChapterPage, response = get_page(
             chapterHeaders[key]['text_source_url'], reqHeaders,
-            response, sectionHeaders[upkey]['text_source_url']
+            response, sectionHeaders[chaptersUpkey[key]]['text_source_url']
             )
         articleHeaders.update(
             get_subheaders_from_page(
-                codexChapterPage, chapterHeaders[key], key, ARTICLE_SIGN, HOST,
+                codexChapterPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX, ARTICLE_SIGN, HOST,
                 articleNumberPattern, baseHeader
                 )
             )
+        articklesUpkey = dict.fromkeys(articleHeaders.keys(), key)
     codexHeaders.update(articleHeaders)
 
     # start of parts processing
@@ -297,10 +299,12 @@ def get_codex_content():
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/be2c7e5355fd620186edb2c60b566fabdb2fdce8/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/095cf3d72883289f916eab42a9925e29ddb731a7/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/f6f8eaf735bbe508bc35e770ada89f5b4263cebc/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c1bcab16c81eba5a2d9cafa87dd4a3abae6c0790/'
         #articleHeaders[key]['text_source_url'] = testURL
         codexArticlePage, response = get_page(
             articleHeaders[key]['text_source_url'], reqHeaders,
-            response, chapterHeaders[upkey]['text_source_url']
+            response, chapterHeaders[articklesUpkey[key]]['text_source_url']
             )
         textTitle = codexArticlePage.xpath(
             '//div[@class="text"]//div/span')[0].text_content()
