@@ -262,8 +262,8 @@ def get_codex_content():
             )
         chapterHeaders.update(
             get_subheaders_from_page(
-                codexSectionPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX, CHAPTER_SIGN, HOST,
-                chapterNumberPattern, baseHeader
+                codexSectionPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX,
+                CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader
                 )
             )
         chaptersUpkey = dict.fromkeys(chapterHeaders.keys(), key)
@@ -280,18 +280,18 @@ def get_codex_content():
             )
         articleHeaders.update(
             get_subheaders_from_page(
-                codexChapterPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX, ARTICLE_SIGN, HOST,
-                articleNumberPattern, baseHeader
+                codexChapterPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX,
+                ARTICLE_SIGN, HOST, articleNumberPattern, baseHeader
                 )
             )
         articklesUpkey = dict.fromkeys(articleHeaders.keys(), key)
     codexHeaders.update(articleHeaders)
 
     # start of parts processing
-    numArt = 1 #debug
+    numArt = 1  #debug
     for key in articleHeaders:
-        print(f'Processing article {numArt}/{len(articleHeaders)}...') #debug
-        numArt+=1 #debug
+        print(f'Processing article {numArt}/{len(articleHeaders)}...', end='\r')  #debug
+        numArt += 1  #debug
         upkey = upperLevelKeyPattern.search(key)[0]
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/050f7cdf016b07506efdb7120d14daefc7c5d74d/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c4e643d138637f4eafb763d628fc44ef99c71a15/'
@@ -301,16 +301,20 @@ def get_codex_content():
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/f6f8eaf735bbe508bc35e770ada89f5b4263cebc/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c1bcab16c81eba5a2d9cafa87dd4a3abae6c0790/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
         #articleHeaders[key]['text_source_url'] = testURL
         codexArticlePage, response = get_page(
             articleHeaders[key]['text_source_url'], reqHeaders,
             response, chapterHeaders[articklesUpkey[key]]['text_source_url']
             )
-        textTitle = codexArticlePage.xpath(
-            '//div[@class="text"]//div/span')[0].text_content()
+        try:
+            textTitle = codexArticlePage.xpath(
+                '//div[@class="text"]/h1/div[@style]/span')[0].text_content()
+        except IndexError:
+            textTitle = codexArticlePage.xpath('//h1')[0].text_content()
         codexHeaders[key]['title'] = textTitle
         stringList = []
-        spans = codexArticlePage.xpath('//div[@class="text"]/div/span')
+        spans = codexArticlePage.xpath('//div[@class="text"]/div[@style]/span')
         for string in spans:
             string_text = string.text_content()
             if string_text != '\xa0':
@@ -401,7 +405,8 @@ def get_codex_content():
                     podpunktIndexes = get_subheaders_indexes(
                         punktsDictStringList[key], podpunktNumberPattern)
                     if not podpunktIndexes:
-                        if len(punktsDictStringList[key]) > 1:
+                        if len(punktsDictStringList[key]) > 1 and \
+                                not punktsDictStringList[key][0].endswith('-'):
                             abzatsHeaders = \
                                 get_subheaders_from_strings_by_indexes(
                                     punktHeaders[key], key,
@@ -422,7 +427,9 @@ def get_codex_content():
                                 )
                         codexHeaders.update(podpunktHeaders)
                         for key in podpunktHeaders:
-                            if len(podpunktsDictStringList[key]) > 1:
+                            if len(podpunktsDictStringList[key]) > 1 and \
+                                not podpunktsDictStringList[key][0]. \
+                                    endswith('-'):
                                 abzatsHeaders = \
                                     get_subheaders_from_strings_by_indexes(
                                         podpunktHeaders[key], key,
