@@ -30,7 +30,7 @@ editionPattern = re.compile(r'ред.\s+от\s+\d\d\.\d\d\.\d{4}')
 relPattern = re.compile(r'от\s+\d\d\.\d\d\.\d{4}')
 datePattern = re.compile(r'\d\d\.\d\d\.\d{4}')
 
-notePattern = re.compile(r'Примечани[ея][\.:]')
+notePattern = re.compile(r'Примечани[ея][\.:\s]')
 
 upperLevelKeyPattern = re.compile(r'.*(?=/)')
 sectionNumberPattern = re.compile(r'[A-Za-z]+')
@@ -55,6 +55,9 @@ podpunktNumberRangePattern = re.compile(
 podpunktNumberRangeNumPattern = re.compile(
     r'(?:[а-яa-z][-.а-яa-z]*(?=\)\s)|[а-яa-z][-.а-яa-z]*(?=\)-))')
 podpunktNumberRangeNumLastNum = re.compile(r'[а-яa-z]+$')
+
+rangeLabeledByWordsCheckPattern = re.compile(r'[Уу]тратил(?:[а-я]|)\s+силу')
+justNumberPattern = re.compile(r'\d+')
 
 
 def get_cookie(response):
@@ -204,6 +207,61 @@ def get_subheaders_from_strings_by_indexes(
     return (subheaders, subhDictStringList)
 
 
+def get_subheaders_range_labeled_by_words_instead_numbers(
+        allGottenHeaders, rejectingPatterns, header, hKey, stringList,
+        subhSign, subhNamePrefix, subhNumPattern, baseHeader):
+    if len(stringList) == 1:
+        return
+    indexesStrsLabeledByWords = []
+    subhNums = set()
+    for i in range(len(stringList)):
+        if subhNumPattern.match(stringList[i]) is not None:
+            subhNums.add(
+                int(justNumberPattern.search(stringList[i])[0]))
+            continue
+        eggs = False
+        for pattern in rejectingPatterns:
+            if pattern.match(stringList[i]) is not None:
+                eggs = True
+                break
+        if eggs:
+            continue
+        if rangeLabeledByWordsCheckPattern.search(stringList[i]) is not None:
+            print(f'Warning: Article {hKey} has a range labeled by words.')
+            indexesStrsLabeledByWords.append(i)
+    for index in indexesStrsLabeledByWords:
+        try:
+            if subhNumPattern.match(stringList[index+1]) is not None:
+                lastNum = int(justNumberPattern.search(stringList[index+1])[0])
+                for num in range(1, lastNum):
+                    subhNum = str(num)
+                    docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+                    if (num not in subhNums and
+                            docID not in allGottenHeaders):
+                        commonText = stringList[index]
+                        doc_type = f"{header['doc_type']}/{subhSign}"
+                        title = header['title'] + subhNamePrefix + subhNum
+                        text_source_url = header['text_source_url']
+                        allGottenHeaders[docID] = {
+                            'supertype': baseHeader['supertype'],
+                            'doc_type': doc_type,
+                            'title': title,
+                            'release_date': baseHeader['release_date'],
+                            'text_source_url': text_source_url,
+                            'text': commonText
+                            }
+            else:
+                raise Exception(f"Error: Article {hKey} has abzats after range"
+                                " labeled by words.")
+        except IndexError:
+            raise Exception(f"Error: Article {hKey} has range labeled by "
+                            "words. This range is the last abzats in the "
+                            "Article, so program can't get number of "
+                            "subheaders.")
+    for index in indexesStrsLabeledByWords:
+        del stringList[index]
+
+
 def get_codex_content():
     reqHeaders = {
         'User-Agent':
@@ -270,7 +328,7 @@ def get_codex_content():
     codexHeaders.update(chapterHeaders)
     # end of chapters processing
 
-    # start of articles processing
+    # start of first stage of articles processing
     articleHeaders = {}
     for key in chapterHeaders:
         upkey = upperLevelKeyPattern.search(key)[0]
@@ -286,7 +344,9 @@ def get_codex_content():
             )
         articklesUpkey = dict.fromkeys(articleHeaders.keys(), key)
     codexHeaders.update(articleHeaders)
+    # end of first stage of articles processing
 
+    # start of last stage of articles processing
     # start of parts processing
     numArt = 1  #debug
     for key in articleHeaders:
@@ -302,6 +362,8 @@ def get_codex_content():
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/f6f8eaf735bbe508bc35e770ada89f5b4263cebc/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c1bcab16c81eba5a2d9cafa87dd4a3abae6c0790/'
         #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/ebf5dddb0d5fcdf25d19cbc40c405fc254be2f76/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/2d4123171d6f4bc4e745e0e431bf9d127cfa417a/'
         #articleHeaders[key]['text_source_url'] = testURL
         codexArticlePage, response = get_page(
             articleHeaders[key]['text_source_url'], reqHeaders,
@@ -321,7 +383,7 @@ def get_codex_content():
                 stringList.append(string_text)
         articleText = textTitle + '\n\n' + '\n'.join(stringList)
         codexHeaders[key]['text'] = articleText
-        # end of articles processing
+        # end of article processing
 
         # start of notes processing
         noteStrings = []
@@ -349,6 +411,13 @@ def get_codex_content():
                 )
             )
 
+        get_subheaders_range_labeled_by_words_instead_numbers(
+            codexHeaders, [punktNumberPattern, punktNumberRangePattern,
+                           podpunktNumberPattern, podpunktNumberRangePattern],
+            articleHeaders[key], key, stringList, PART_SIGN,
+            PART_NAME_PREFIX,  partNumberPattern, baseHeader
+            )
+
         partsIndexes = get_subheaders_indexes(stringList, partNumberPattern)
         if not partsIndexes:
             continue
@@ -370,6 +439,15 @@ def get_codex_content():
                     baseHeader
                     )
                 )
+
+            get_subheaders_range_labeled_by_words_instead_numbers(
+                codexHeaders, [podpunktNumberPattern,
+                               podpunktNumberRangePattern,
+                               partNumberPattern],
+                partHeaders[key], key, partsDictStringList[key], PUNKT_SIGN,
+                PUNKT_NAME_PREFIX,  punktNumberPattern, baseHeader
+            )
+
             punktIndexes = get_subheaders_indexes(partsDictStringList[key],
                                                   punktNumberPattern)
             if not punktIndexes:
@@ -442,6 +520,7 @@ def get_codex_content():
                                 continue
                 # end of podpunkts processing
         # end of punkts processing
+    # end of last stage of articles processing
     # end of parts processing
 # end of codex processing
     return codexHeaders
