@@ -37,27 +37,32 @@ sectionNumberPattern = re.compile(r'[A-Za-z]+')
 chapterNumberPattern = re.compile(r'\d+')
 articleNumberPattern = re.compile(r'\d+(?:\.\d+)+')
 
-partNumberPattern = re.compile(r'\d+[-\.\d]*(?=\.\s)')
-partNumberRangePattern = re.compile(r'\d+[-\.\d]*\s+-\s+\d+[-\.\d]*(?=\s)')
-partNumberRangeNumPattern = re.compile(r'\d+[-\.\d]*(?=\s)')
+partNumberPattern = re.compile(r'\d+[-–—\.\d]*(?=\.\s)')
+partNumberRangePattern = re.compile(
+    r'\d+[-–—\.\d]*\s+[-–—]\s+\d+[-–—\.\d]*(?=\s)')
+partNumberRangeNumPattern = re.compile(r'\d+[-–—\.\d]*(?=\s)')
 partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
 
-punktNumberPattern = re.compile(r'\d+[-\.\d]*(?=\)\s)')
+punktNumberPattern = re.compile(r'\d+[-–—\.\d]*(?=\)\s)')
 punktNumberRangePattern = re.compile(
-    r'\d+[-\.\d]*\)\s*?-\s*?\d+[-\.\d]*\)(?=\s)')
+    r'\d+[-–—\.\d]*\)\s*?-\s*?\d+[-–—\.\d]*\)(?=\s)')
 punktNumberRangeNumPattern = re.compile(
-    r'(?:\d+[-\.\d]*(?=\)\s)|\d+[-\.\d]*(?=\)-))')
+    r'(?:\d+[-–—\.\d]*(?=\)\s)|\d+[-–—\.\d]*(?=\)[-–—]))')
 punktNumberRangeNumLastNum = partNumberRangeNumLastNum
 
-podpunktNumberPattern = re.compile(r'[а-яa-z][-.а-яa-z]*(?=\)\s)')
+podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
 podpunktNumberRangePattern = re.compile(
-    r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-.а-яa-z]*\)(?=\s)')
+    r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
 podpunktNumberRangeNumPattern = re.compile(
-    r'(?:[а-яa-z][-.а-яa-z]*(?=\)\s)|[а-яa-z][-.а-яa-z]*(?=\)-))')
+    r'(?:[а-яa-z][-–—.а-яa-z]*(?=\)\s)|[а-яa-z][-–—.а-яa-z]*(?=\)-))')
 podpunktNumberRangeNumLastNum = re.compile(r'[а-яa-z]+$')
 
 rangeLabeledByWordsCheckPattern = re.compile(r'[Уу]тратил(?:[а-я]|)\s+силу')
 justNumberPattern = re.compile(r'\d+')
+
+enumerationCheckPattern = re.compile(r'[-–—:]+\s*?$')
+lastEnumElCheckPattern = re.compile(r'[\.]+\s*?$')
+endsWithDashCheckPattern = re.compile(r'[-–—]+\s*?$')
 
 
 def get_cookie(response):
@@ -262,6 +267,50 @@ def get_subheaders_range_labeled_by_words_instead_numbers(
         del stringList[index]
 
 
+def process_unique_subhs_abzats_together(
+        header, hKey, stringList, subhIndexes, subhSign, subhNamePrefix,
+        baseHeader):
+    subheaders = {}
+    if len(stringList[:subhIndexes[0]]) > 1:
+        raise Exception(f"Error: Article {hKey} has multiple abzats before "
+                        "subheaders.")
+    abzatsDiapazonsIndexes = []
+    stringToDeleteIndexes = []
+    if enumerationCheckPattern.search(
+                        stringList[subhIndexes[-1]]) is None:
+        if subhIndexes[-1] != len(stringList)-1:
+            abzatsDiapazonsIndexes.append((0, subhIndexes[-1]))
+            for i in range(subhIndexes[-1]+1, len(stringList)):
+                abzatsDiapazonsIndexes.append((i, i))
+                stringToDeleteIndexes.append(i)
+        else:
+            return subheaders
+    elif lastEnumElCheckPattern.search(stringList[-2]) is not None:
+        raise Exception(f"Error: Article {hKey} has abzats after end of "
+                        "enumeration.")
+    for i in range(len(abzatsDiapazonsIndexes)):
+        doc_type = f"{header['doc_type']}/{subhSign}"
+        text_source_url = header['text_source_url']
+        subhNum = str(i+1)
+        title = header['title'] + subhNamePrefix + subhNum
+        docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+        subhText = '\n'.join(stringList[
+            abzatsDiapazonsIndexes[i][0]:abzatsDiapazonsIndexes[i][1]+1])
+        subheaders[docID] = {
+            'supertype': baseHeader['supertype'],
+            'doc_type': doc_type,
+            'title': title,
+            'release_date': baseHeader['release_date'],
+            'text_source_url': text_source_url,
+            'text': subhText
+            }
+    correction = 0
+    for i in stringToDeleteIndexes:
+        del stringList[i-correction]
+        correction += 1
+    return subheaders
+
+
 def get_codex_content():
     reqHeaders = {
         'User-Agent':
@@ -348,22 +397,13 @@ def get_codex_content():
 
     # start of last stage of articles processing
     # start of parts processing
-    numArt = 1  #debug
+    numArt = 1  # debug
     for key in articleHeaders:
-        print(f'Processing article {numArt}/{len(articleHeaders)}...', end='\r')  #debug
-        numArt += 1  #debug
+        print(f'Processing article {numArt}/{len(articleHeaders)}...',
+              end='\r')  # debug
+        numArt += 1  # debug
         upkey = upperLevelKeyPattern.search(key)[0]
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/050f7cdf016b07506efdb7120d14daefc7c5d74d/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c4e643d138637f4eafb763d628fc44ef99c71a15/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/9bb3917d25392ccbd6a8b265099b3c86333cdac3/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/be2c7e5355fd620186edb2c60b566fabdb2fdce8/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/095cf3d72883289f916eab42a9925e29ddb731a7/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/f6f8eaf735bbe508bc35e770ada89f5b4263cebc/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/c1bcab16c81eba5a2d9cafa87dd4a3abae6c0790/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/8132296f390c25aa030ef52774e6a1ed039040bb/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/ebf5dddb0d5fcdf25d19cbc40c405fc254be2f76/'
-        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/2d4123171d6f4bc4e745e0e431bf9d127cfa417a/'
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/ec55ca680f2de0bc822beeaf4dcbbe162b81059d/'
         #articleHeaders[key]['text_source_url'] = testURL
         codexArticlePage, response = get_page(
             articleHeaders[key]['text_source_url'], reqHeaders,
@@ -420,7 +460,12 @@ def get_codex_content():
 
         partsIndexes = get_subheaders_indexes(stringList, partNumberPattern)
         if not partsIndexes:
-            continue
+            if (len(stringList) > 1 and
+                    enumerationCheckPattern.search(stringList[0]) is None):
+                raise Exception(f"Error: Article {key} is divided into abzats "
+                                "but not into parts.")
+            else:
+                continue
 
         partHeaders, partsDictStringList = \
             get_subheaders_from_strings_by_indexes(
@@ -450,9 +495,18 @@ def get_codex_content():
 
             punktIndexes = get_subheaders_indexes(partsDictStringList[key],
                                                   punktNumberPattern)
+
+            # just need to check on big dataset
+            if (len(partsDictStringList[key]) > 2 and
+                    endsWithDashCheckPattern.search(
+                        partsDictStringList[key][0]) is not None):
+                print(f"Warning: Part {key} has multiple abzats after '-', "
+                      "please check.")
+
             if not punktIndexes:
                 if (len(partsDictStringList[key]) > 1 and
-                        not partsDictStringList[key][0].endswith('-')):
+                        endsWithDashCheckPattern.search(
+                            partsDictStringList[key][0]) is None):
                     abzatsHeaders = get_subheaders_from_strings_by_indexes(
                         partHeaders[key], key, partsDictStringList[key], None,
                         ABZATS_SIGN, ABZATS_NAME_PREFIX, None, baseHeader
@@ -461,6 +515,14 @@ def get_codex_content():
                 else:
                     continue
             else:
+                codexHeaders.update(
+                    process_unique_subhs_abzats_together(
+                        partHeaders[key], key, partsDictStringList[key],
+                        punktIndexes, ABZATS_SIGN, ABZATS_NAME_PREFIX,
+                        baseHeader
+                        )
+                    )
+
                 punktHeaders, punktsDictStringList = \
                     get_subheaders_from_strings_by_indexes(
                         partHeaders[key], key, partsDictStringList[key],
@@ -482,9 +544,18 @@ def get_codex_content():
                         )
                     podpunktIndexes = get_subheaders_indexes(
                         punktsDictStringList[key], podpunktNumberPattern)
+
+                    # just need to check on big dataset
+                    if (len(punktsDictStringList[key]) > 2 and
+                            endsWithDashCheckPattern.search(
+                                punktsDictStringList[key][0]) is not None):
+                        print(f"Warning: Punkt {key} has multiple abzats after"
+                              " '-', please check.")
+
                     if not podpunktIndexes:
                         if len(punktsDictStringList[key]) > 1 and \
-                                not punktsDictStringList[key][0].endswith('-'):
+                                endsWithDashCheckPattern.search(
+                                    punktsDictStringList[key][0]) is None:
                             abzatsHeaders = \
                                 get_subheaders_from_strings_by_indexes(
                                     punktHeaders[key], key,
@@ -496,6 +567,14 @@ def get_codex_content():
                         else:
                             continue
                     else:
+                        codexHeaders.update(
+                            process_unique_subhs_abzats_together(
+                                punktHeaders[key], key,
+                                punktsDictStringList[key], podpunktIndexes,
+                                ABZATS_SIGN, ABZATS_NAME_PREFIX, baseHeader
+                                )
+                            )
+
                         podpunktHeaders, podpunktsDictStringList = \
                             get_subheaders_from_strings_by_indexes(
                                 punktHeaders[key], key,
@@ -506,8 +585,8 @@ def get_codex_content():
                         codexHeaders.update(podpunktHeaders)
                         for key in podpunktHeaders:
                             if len(podpunktsDictStringList[key]) > 1 and \
-                                not podpunktsDictStringList[key][0]. \
-                                    endswith('-'):
+                                endsWithDashCheckPattern.search(
+                                    podpunktsDictStringList[key][0]) is None:
                                 abzatsHeaders = \
                                     get_subheaders_from_strings_by_indexes(
                                         podpunktHeaders[key], key,
