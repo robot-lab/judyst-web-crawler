@@ -10,13 +10,21 @@ else:
     from web_crawler import WebCrawler
     from web_crawler\
         import DataSource, DataSourceType, DataType
-Database_Source = ksrf.LocalFileStorageSource()
-KSRF_Source = ksrf.KSRFSource(Database_Source)
-Crawler = WebCrawler([Database_Source, KSRF_Source])
-# Crawler.collected_sources['LocalFileStorage'].folder_path = \
-#     'D:\\programming\\Judyst\\files'
-# Crawler.prepare_sources(['LocalFileStorage', 'KSRFSource'])
+Local_database_source = ksrf.LocalFileStorageSource()
+KSRF_Source = ksrf.KSRFSource()
+Crawler = WebCrawler([Local_database_source, KSRF_Source])
 
-# Crawler.prepare_sources()
-# source = Crawler.get_data_source('KSRFsource')
-__all__ = ['Crawler', 'DataSourceType', 'DataType', 'KSRF_Source']
+
+def Init(sourceNameList=None, databaseSource=None):
+    '''
+    Initialize web_crawler for working. 
+    Should be invoked before any actions with
+    Crawler
+    '''
+    global Crawler
+    Crawler.prepare_sources(sourceNameList, databaseSource)
+# Local_database_source.folder_path = 'D:\\programming\\Judyst\\files'
+# Local_database_source.prepare()
+# Init(databaseSource=Local_database_source)
+
+__all__ = ['Crawler', 'DataSourceType', 'DataType', 'Init']

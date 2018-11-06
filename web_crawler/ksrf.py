@@ -25,8 +25,8 @@ if __package__:
 else:
     from web_crawler import DataSource, DataSourceType, DataType
 
-PATH_TO_CHROME_WEB_DRIVER = (os.path.dirname(__file__) +
-                             '\\Selenium\\chromedriver.exe')
+PATH_TO_CHROME_WEB_DRIVER = os.path.join(os.path.dirname(__file__),
+                             'Selenium','chromedriver.exe')
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
 
@@ -57,7 +57,7 @@ def get_web_driver(pathToChromeWebDriver=PATH_TO_CHROME_WEB_DRIVER,
 
 
 def get_open_page_script_template(
-        driver: 'selenium.webdriver.chrome.webdriver.WebDriver',
+        driver,
         templateKey='NUMBER'):
     page = html.document_fromstring(driver.page_source)
     template = page.find_class('UserSectionFooter ms-WPBody srch-WPBody')[0]. \
@@ -82,6 +82,7 @@ typePattern = re.compile(r"(?:[А-Яа-я][-А-Яа-я]*(?=-\d)|"
                          r"[А-Яа-я][-А-Яа-я]*(?=\d))")
 
 pdfNumberPattern = re.compile(r"(?<=[A-Za-z])\d+")
+
 
 def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
     # TO DO: check for that page is refreshed
@@ -108,14 +109,18 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
             headerElements = {'supertype': sourcePrefix,
                               'release_date': date, 'doc_type': docType,
                               'title': title, 'text_source_url': url}
-            if decisionID not in courtSiteContent and decisionID not in dupDict:
+            if decisionID not in courtSiteContent and\
+                    decisionID not in dupDict:
                 courtSiteContent[decisionID] = headerElements
             else:
                 if decisionID not in dupDict:
-                    alreadyAddedUrl=courtSiteContent[decisionID]['text_source_url']
-                    alreadyAddedNewDecID = decisionID + f'/{pdfNumberPattern.search(alreadyAddedUrl)[0]}-DUP'
-                    dupDict[decisionID]=[courtSiteContent[decisionID]]
-                    courtSiteContent[alreadyAddedNewDecID] = courtSiteContent[decisionID]
+                    alreadyAddedUrl = courtSiteContent[decisionID][
+                        'text_source_url']
+                    alreadyAddedNewDecID = decisionID\
+                        + f'/{pdfNumberPattern.search(alreadyAddedUrl)[0]}-DUP'
+                    dupDict[decisionID] = [courtSiteContent[decisionID]]
+                    courtSiteContent[alreadyAddedNewDecID] = courtSiteContent[
+                        decisionID]
                     del courtSiteContent[decisionID]
                 eggs = False
                 for header in dupDict[decisionID]:
@@ -123,7 +128,8 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
                         eggs = True
                         break
                 if not eggs:
-                    newDecID = decisionID + f'/{pdfNumberPattern.search(url)[0]}-DUP'
+                    newDecID = decisionID + \
+                        f'/{pdfNumberPattern.search(url)[0]}-DUP'
                     dupDict[decisionID].append(headerElements)
                     courtSiteContent[newDecID] = headerElements
         page = html.document_fromstring(get_page_html_by_num(
@@ -204,12 +210,14 @@ class KSRFSource(DataSource):
     _decision_urls = dict()
     _database_source = None
 
-    def __init__(self, dataBaseSource):
-        if (not isinstance(dataBaseSource, DataSource)):
-            raise TypeError('dataBaseSource should be an inheriter of\
-                DataSource class')
+    def __init__(self):
         super().__init__('KSRFSource', DataSourceType.WEB_SOURCE)
-        self._database_source = dataBaseSource
+
+    def set_database(self, database):
+        '''
+        set given database data source to the data source
+        '''
+        self._database_source = database
 
     def prepare(self):
         '''
@@ -230,12 +238,10 @@ class KSRFSource(DataSource):
                                         DataType.DOCUMENT_HEADER)
             else:
                 headers = headersFromBase
-            
+
             self._decision_urls = {}
             for dataId in headers:
                 elem = headers[dataId]
-                if ('not unique' in elem):
-                    continue #todo
                 self._decision_urls[dataId] = elem['text_source_url']
             return True
         except Exception:
@@ -307,7 +313,7 @@ class LocalFileStorageSource(DataSource):
                                            self.HEADERS_FILE_NAME)
             if (os.path.exists(headersFilePath)):
                 with open(headersFilePath, 'rt', encoding='utf-8')\
-                    as headersFile:
+                        as headersFile:
                     headers = json.loads(headersFile.read())
                     self.headers = {uid: headers[uid]
                                     for uid in headers
@@ -333,10 +339,11 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             textFileName = get_possible_text_location(dataId, self.folder_path)
             if (not os.path.exists(textFileName)):
-                text = download_text(self.headers[dataId]['text_source_url'], dataId, self.folder_path, True, True)[1]
+                text = download_text(self.headers[dataId]['text_source_url'],
+                                     dataId, self.folder_path, True, True)[1]
             with open(textFileName, 'rt', encoding='utf-8') as textFile:
                 text = textFile.read()
-            
+
             if text is None:
                 raise ValueError("Can't get text")
             else:
@@ -381,7 +388,8 @@ class LocalFileStorageSource(DataSource):
         elif (dataType == DataType.DOCUMENT_TEXT):
             with open(
                  get_possible_text_location(
-                     docID, self.folder_path), 'wt', encoding='utf-8') as fileTXT:
+                     docID, self.folder_path), 'wt', encoding='utf-8')\
+                     as fileTXT:
                 fileTXT.write(data)
         else:
             raise ValueError('dataType ins\t supported')
