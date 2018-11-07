@@ -144,7 +144,7 @@ def get_page(url, reqHeaders, prevResponse=None, referer=None):
 
 def get_subheaders_from_page(
         page, header, hKey, sign, host,
-        subHeaderNumberPattern, baseHeader, onlyFirst=True,
+        subHeaderNumberPattern, baseHeader, absolutePath, onlyFirst=True,
         ignoreNoMatches=False):
     subElements = page.xpath('//contents/ul/li/a')
     subHeaders = {}
@@ -161,10 +161,12 @@ def get_subheaders_from_page(
             raise Exception(f'Error: Article {hkey} subheaders cannot parsed '
                             'with regexp "{subHeaderNumberPattern.pattern}"')
         for subHeaderNum in match:
-            docID = f"{hKey}/{sign}-{subHeaderNum}".upper()
+            docidLastPart = f"/{sign}-{subHeaderNum}".upper()
+            docID = f"{hKey}" + docidLastPart
             subHeaders[docID] = {
                 'supertype': baseHeader['supertype'],
                 'doc_type': doc_type,
+                'absolute_path': absolutePath + docidLastPart,
                 'title': title,
                 'release_date': baseHeader['release_date'],
                 'text_source_url': text_source_url
@@ -175,7 +177,7 @@ def get_subheaders_from_page(
 
 def get_subheaders_from_header_title(
         headerTitle, headerUrl, header, hKey, sign, subhStartPattern,
-        subHeaderNumbersPattern, baseHeader):
+        subHeaderNumbersPattern, baseHeader, absolutePath):
     subHeaders = {}
     spam = subhStartPattern.search(headerTitle)
     if spam is None:
@@ -186,10 +188,12 @@ def get_subheaders_from_header_title(
     doc_type = f"{header['doc_type']}/{sign}"
     text_source_url = headerUrl
     for subHeaderNum in subhNums:
-        docID = f"{hKey}/{sign}-{subHeaderNum}".upper()
+        docidLastPart = f"/{sign}-{subHeaderNum}".upper()
+        docID = f"{hKey}" + docidLastPart
         subHeaders[docID] = {
             'supertype': baseHeader['supertype'],
             'doc_type': doc_type,
+            'absolute_path': absolutePath + docidLastPart,
             'title': title,
             'release_date': baseHeader['release_date'],
             'text_source_url': text_source_url
@@ -200,7 +204,7 @@ def get_subheaders_from_header_title(
 def get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
         header, hKey, stringList, subhSign, subhNamePrefix,
         subhNumRangePattern, subhNumRangeNumPattern,
-        subhNumRangeNumLastNum, baseHeader):
+        subhNumRangeNumLastNum, baseHeader, absolutePath):
     subhRangeStrings = []
     indexesForDeleting = []
     for i in range(len(stringList)):
@@ -225,11 +229,13 @@ def get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
             text_source_url = header['text_source_url']
             for i in range(first, last+1):
                 subhNum = subhNumRangeNumLastNum.sub(str(i), numTemplate)
-                docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+                docidLastPart = f"/{subhSign}-{subhNum}".upper()
+                docID = f"{hKey}" + docidLastPart
                 title = header['title'] + subhNamePrefix + subhNum
                 subheaders[docID] = {
                     'supertype': baseHeader['supertype'],
                     'doc_type': doc_type,
+                    'absolute_path': absolutePath + docidLastPart,
                     'title': title,
                     'release_date': baseHeader['release_date'],
                     'text_source_url': text_source_url,
@@ -243,10 +249,12 @@ def get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
             for i in range(first, last+1):
                 subhNum = subhNumRangeNumLastNum.sub(chr(i), numTemplate)
                 title = header['title'] + subhNamePrefix + subhNum
-                docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+                docidLastPart = f"/{subhSign}-{subhNum}".upper()
+                docID = f"{hKey}" + docidLastPart
                 subheaders[docID] = {
                     'supertype': baseHeader['supertype'],
                     'doc_type': doc_type,
+                    'absolute_path': absolutePath + docidLastPart,
                     'title': title,
                     'release_date': baseHeader['release_date'],
                     'text_source_url': text_source_url,
@@ -265,7 +273,7 @@ def get_subheaders_indexes(stringList, subhNumPattern):
 
 def get_subheaders_from_strings_by_indexes(
         header, hKey, stringList, subhIndexes, subhSign, subhNamePrefix,
-        subhNumPattern, baseHeader):
+        subhNumPattern, baseHeader, absolutePath):
     subhListStringList = []
     if subhIndexes is not None:
         for i in range(len(subhIndexes)):
@@ -291,12 +299,14 @@ def get_subheaders_from_strings_by_indexes(
         else:
             subhNum = str(0)
         title = header['title'] + subhNamePrefix + subhNum
-        docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+        docidLastPart = f"/{subhSign}-{subhNum}".upper()
+        docID = f"{hKey}" + docidLastPart
         subhText = '\n'.join(subhListStringList[i])
         subhDictStringList[docID] = subhListStringList[i]
         subheaders[docID] = {
             'supertype': baseHeader['supertype'],
             'doc_type': doc_type,
+            'absolute_path': absolutePath + docidLastPart,
             'title': title,
             'release_date': baseHeader['release_date'],
             'text_source_url': text_source_url,
@@ -307,7 +317,7 @@ def get_subheaders_from_strings_by_indexes(
 
 def get_subheaders_range_labeled_by_words_instead_numbers(
         allGottenHeaders, rejectingPatterns, header, hKey, stringList,
-        subhSign, subhNamePrefix, subhNumPattern, baseHeader,
+        subhSign, subhNamePrefix, subhNumPattern, baseHeader, absolutePath,
         thisFirstCall=False):
     ZABIT_NA_ABZATSI = True
     if len(stringList) == 1:
@@ -381,7 +391,8 @@ def get_subheaders_range_labeled_by_words_instead_numbers(
                 text_source_url = header['text_source_url']
                 for num in range(1, lastNum):
                     subhNum = str(num)
-                    docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+                    docidLastPart = f"/{subhSign}-{subhNum}".upper()
+                    docID = f"{hKey}" + docidLastPart
                     if (num not in subhNums and
                             docID not in allGottenHeaders):
                         commonText = stringList[index]
@@ -389,6 +400,7 @@ def get_subheaders_range_labeled_by_words_instead_numbers(
                         allGottenHeaders[docID] = {
                             'supertype': baseHeader['supertype'],
                             'doc_type': doc_type,
+                            'absolute_path': absolutePath + docidLastPart,
                             'title': title,
                             'release_date': baseHeader['release_date'],
                             'text_source_url': text_source_url,
@@ -416,7 +428,7 @@ def get_subheaders_range_labeled_by_words_instead_numbers(
 
 def process_unique_subhs_abzats_together(
         header, hKey, stringList, subhIndexes, subhSign, subhNamePrefix,
-        baseHeader):
+        baseHeader, absolutePath):
     subheaders = {}
     abzatsDiapazonsIndexes = []
     abzatsDiapazonsIndexes1 = []
@@ -463,12 +475,14 @@ def process_unique_subhs_abzats_together(
     for i in range(len(abzatsDiapazonsIndexes)):
         subhNum = str(i+1)
         title = header['title'] + subhNamePrefix + subhNum
-        docID = f"{hKey}/{subhSign}-{subhNum}".upper()
+        docidLastPart = f"/{subhSign}-{subhNum}".upper()
+        docID = f"{hKey}" + docidLastPart
         subhText = '\n'.join(stringList[
             abzatsDiapazonsIndexes[i][0]:abzatsDiapazonsIndexes[i][1]+1])
         subheaders[docID] = {
             'supertype': baseHeader['supertype'],
             'doc_type': doc_type,
+            'absolute_path': absolutePath + docidLastPart,
             'title': title,
             'release_date': baseHeader['release_date'],
             'text_source_url': text_source_url,

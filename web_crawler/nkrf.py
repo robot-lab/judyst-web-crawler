@@ -35,7 +35,7 @@ def get_codex_content():
             }
         spam3 = get_subheaders_from_page(
             codexMainPage, spam1, CODEX_PREFIX,
-            SECTION_SIGN, HOST, sectionNumberPattern, spam2)
+            SECTION_SIGN, HOST, sectionNumberPattern, spam2, CODEX_PREFIX)
 
         # getting true codex part title:
         pageWithTitle, spam = get_page(
@@ -55,6 +55,7 @@ def get_codex_content():
         codexHeaders[CODEX_PART_KEY] = {
             'supertype': supertype,
             'doc_type': doc_type,
+            'absolute_path': CODEX_PART_KEY,
             'title': title,
             'release_date': release_date,
             'text_source_url': text_source_url
@@ -69,7 +70,8 @@ def get_codex_content():
         headerWithCodexDocType = {'doc_type': CODEX_PREFIX}
         sectionHeaders = get_subheaders_from_page(
             codexMainPage, headerWithCodexDocType, CODEX_PREFIX,
-            SECTION_SIGN, HOST, sectionNumberPattern, baseHeader)
+            SECTION_SIGN, HOST, sectionNumberPattern, baseHeader,
+            codexHeaders[CODEX_PART_KEY]['absolute_path'])
         codexHeaders.update(sectionHeaders)
         # end of sections processing
 
@@ -82,7 +84,8 @@ def get_codex_content():
                 )
             temp = get_subheaders_from_page(
                     codexSectionPage, headerWithCodexDocType, CODEX_PREFIX,
-                    CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader
+                    CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader,
+                    sectionHeaders[key]['absolute_path']
                     )
             chapterHeaders.update(temp)
         codexHeaders.update(chapterHeaders)
@@ -98,7 +101,7 @@ def get_codex_content():
             ahs = get_subheaders_from_page(
                     codexChapterPage, headerWithCodexDocType, CODEX_PREFIX,
                     ARTICLE_SIGN, HOST, articlesNumbersPattern, baseHeader,
-                    onlyFirst=False
+                    chapterHeaders[key]['absolute_path'], onlyFirst=False
                     )
             if ahs:
                 articleHeaders.update(ahs)
@@ -109,7 +112,8 @@ def get_codex_content():
                     chapterHeaders[key]['text_source_url'],
                     headerWithCodexDocType, CODEX_PREFIX,
                     ARTICLE_SIGN, articlesStartPattern,
-                    articlesNumbersPattern, baseHeader
+                    articlesNumbersPattern, baseHeader,
+                    chapterHeaders[key]['absolute_path']
                 )
                 if ahs:
                     articleHeaders.update(ahs)
@@ -162,7 +166,8 @@ def get_codex_content():
             if noteStrings:
                 noteHeaders = get_subheaders_from_strings_by_indexes(
                     articleHeaders[key], key, noteStrings, [0], NOTE_SIGN,
-                    NOTE_NAME_PREFIX, None, baseHeader
+                    NOTE_NAME_PREFIX, None, baseHeader,
+                    articleHeaders[key]['absolute_path']
                     )[0]
                 codexHeaders.update(noteHeaders)
             # end of notes processing
@@ -172,7 +177,7 @@ def get_codex_content():
                     articleHeaders[key], key, stringList, PART_SIGN,
                     PART_NAME_PREFIX, partNumberRangePattern,
                     partNumberRangeNumPattern, partNumberRangeNumLastNum,
-                    baseHeader
+                    baseHeader, articleHeaders[key]['absolute_path']
                     )
                 )
 
@@ -182,7 +187,8 @@ def get_codex_content():
                                podpunktNumberRangePattern,
                                loneNoMoreValidAbzatsPattern],
                 articleHeaders[key], key, stringList, PART_SIGN,
-                PART_NAME_PREFIX,  partNumberPattern, baseHeader, True
+                PART_NAME_PREFIX,  partNumberPattern, baseHeader,
+                articleHeaders[key]['absolute_path'], True
                 )
 
             partsIndexes = get_subheaders_indexes(stringList,
@@ -193,7 +199,8 @@ def get_codex_content():
                             stringList[0]) is not None):
                     abzatsHeaders = get_subheaders_from_strings_by_indexes(
                             articleHeaders[key], key, stringList, None,
-                            ABZATS_SIGN, ABZATS_NAME_PREFIX, None, baseHeader
+                            ABZATS_SIGN, ABZATS_NAME_PREFIX, None, baseHeader,
+                            articleHeaders[key]['absolute_path']
                             )[0]
                     codexHeaders.update(abzatsHeaders)
                     continue
@@ -203,7 +210,8 @@ def get_codex_content():
             partHeaders, partsDictStringList = \
                 get_subheaders_from_strings_by_indexes(
                     articleHeaders[key], key, stringList, partsIndexes,
-                    PART_SIGN, PART_NAME_PREFIX, partNumberPattern, baseHeader
+                    PART_SIGN, PART_NAME_PREFIX, partNumberPattern, baseHeader,
+                    articleHeaders[key]['absolute_path']
                     )
             codexHeaders.update(partHeaders)
 
@@ -214,7 +222,7 @@ def get_codex_content():
                         partHeaders[key], key, partsDictStringList[key],
                         PUNKT_SIGN, PUNKT_NAME_PREFIX, punktNumberRangePattern,
                         punktNumberRangeNumPattern, punktNumberRangeNumLastNum,
-                        baseHeader
+                        baseHeader, partHeaders[key]['absolute_path']
                         )
                     )
 
@@ -225,7 +233,7 @@ def get_codex_content():
                                    loneNoMoreValidAbzatsPattern],
                     partHeaders[key], key, partsDictStringList[key],
                     PUNKT_SIGN, PUNKT_NAME_PREFIX, punktNumberPattern,
-                    baseHeader
+                    baseHeader, partHeaders[key]['absolute_path']
                     )
 
                 punktIndexes = get_subheaders_indexes(partsDictStringList[key],
@@ -245,7 +253,7 @@ def get_codex_content():
                         abzatsHeaders = get_subheaders_from_strings_by_indexes(
                             partHeaders[key], key, partsDictStringList[key],
                             None, ABZATS_SIGN, ABZATS_NAME_PREFIX, None,
-                            baseHeader
+                            baseHeader, partHeaders[key]['absolute_path']
                             )[0]
                         codexHeaders.update(abzatsHeaders)
                     else:
@@ -255,7 +263,7 @@ def get_codex_content():
                         process_unique_subhs_abzats_together(
                             partHeaders[key], key, partsDictStringList[key],
                             punktIndexes, ABZATS_SIGN, ABZATS_NAME_PREFIX,
-                            baseHeader
+                            baseHeader, partHeaders[key]['absolute_path']
                             )
                         )
 
@@ -263,7 +271,8 @@ def get_codex_content():
                         get_subheaders_from_strings_by_indexes(
                             partHeaders[key], key, partsDictStringList[key],
                             punktIndexes, PUNKT_SIGN, PUNKT_NAME_PREFIX,
-                            punktNumberPattern, baseHeader
+                            punktNumberPattern, baseHeader,
+                            partHeaders[key]['absolute_path']
                             )
                     codexHeaders.update(punktHeaders)
 
@@ -277,7 +286,8 @@ def get_codex_content():
                                 ABZATS_SIGN, ABZATS_NAME_PREFIX,
                                 podpunktNumberRangePattern,
                                 podpunktNumberRangeNumPattern,
-                                podpunktNumberRangeNumLastNum, baseHeader
+                                podpunktNumberRangeNumLastNum, baseHeader,
+                                punktHeaders[key]['absolute_path']
                                 )
                             )
                         podpunktIndexes = get_subheaders_indexes(
@@ -299,7 +309,8 @@ def get_codex_content():
                                         punktHeaders[key], key,
                                         punktsDictStringList[key], None,
                                         ABZATS_SIGN, ABZATS_NAME_PREFIX,
-                                        None, baseHeader
+                                        None, baseHeader,
+                                        punktHeaders[key]['absolute_path']
                                         )[0]
                                 codexHeaders.update(abzatsHeaders)
                             else:
@@ -309,7 +320,8 @@ def get_codex_content():
                                 process_unique_subhs_abzats_together(
                                     punktHeaders[key], key,
                                     punktsDictStringList[key], podpunktIndexes,
-                                    ABZATS_SIGN, ABZATS_NAME_PREFIX, baseHeader
+                                    ABZATS_SIGN, ABZATS_NAME_PREFIX, baseHeader,
+                                    punktHeaders[key]['absolute_path']
                                     )
                                 )
 
@@ -318,7 +330,8 @@ def get_codex_content():
                                     punktHeaders[key], key,
                                     punktsDictStringList[key], podpunktIndexes,
                                     ABZATS_SIGN, ABZATS_NAME_PREFIX,
-                                    podpunktNumberPattern, baseHeader
+                                    podpunktNumberPattern, baseHeader,
+                                    punktHeaders[key]['absolute_path']
                                     )
                             codexHeaders.update(podpunktHeaders)
                             for key in podpunktHeaders:
@@ -331,7 +344,8 @@ def get_codex_content():
                                             podpunktHeaders[key], key,
                                             podpunktsDictStringList[key], None,
                                             ABZATS_SIGN, ABZATS_NAME_PREFIX,
-                                            None, baseHeader
+                                            None, baseHeader,
+                                            podpunktHeaders[key]['absolute_path']
                                             )[0]
                                     codexHeaders.update(abzatsHeaders)
                                 else:
