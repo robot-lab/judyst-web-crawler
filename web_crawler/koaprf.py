@@ -53,28 +53,25 @@ def get_codex_content():
             sectionHeaders[key]['text_source_url'], reqHeaders,
             response, codexHeaders[CODEX_PREFIX]['text_source_url']
             )
-        chapterHeaders.update(
-            get_subheaders_from_page(
+        temp = get_subheaders_from_page(
                 codexSectionPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX,
                 CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader
                 )
-            )
-        chaptersUpkey = dict.fromkeys(chapterHeaders.keys(), key)
+        chapterHeaders.update(temp)
     codexHeaders.update(chapterHeaders)
     # end of chapters processing
 
     # start of first stage of articles processing
     articleHeaders = {}
     for key in chapterHeaders:
-        upkey = upperLevelKeyPattern.search(key)[0]
         codexChapterPage, response = get_page(
             chapterHeaders[key]['text_source_url'], reqHeaders,
-            response, sectionHeaders[chaptersUpkey[key]]['text_source_url']
+            response, codexHeaders[CODEX_PREFIX]['text_source_url']
             )
         ahs = get_subheaders_from_page(
             codexChapterPage, codexHeaders[CODEX_PREFIX], CODEX_PREFIX,
             ARTICLE_SIGN, HOST, articlesNumbersPattern, baseHeader,
-            False
+            onlyFirst=False
             )
         if ahs:
             articleHeaders.update(ahs)
@@ -91,7 +88,6 @@ def get_codex_content():
                 articleHeaders.update(ahs)
             else:
                 raise Exception(f"Cannot get articles from chapter {key}")
-        articklesUpkey = dict.fromkeys(articleHeaders.keys(), key)
     codexHeaders.update(articleHeaders)
     # end of first stage of articles processing
 
@@ -102,12 +98,11 @@ def get_codex_content():
         print(f'Processing article {numArt}/{len(articleHeaders)}...',
               end='\r')  # debug
         numArt += 1  # debug
-        upkey = upperLevelKeyPattern.search(key)[0]
         # testURL = 'testURL'
         # articleHeaders[key]['text_source_url'] = testURL
         codexArticlePage, response = get_page(
             articleHeaders[key]['text_source_url'], reqHeaders,
-            response, chapterHeaders[articklesUpkey[key]]['text_source_url']
+            response, codexHeaders[CODEX_PREFIX]['text_source_url']
             )
         try:
             textTitle = codexArticlePage.xpath(

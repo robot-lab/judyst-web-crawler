@@ -26,7 +26,10 @@ REQHEADERS = {
     }
 
 SECTION_SIGN = 'Р'
+SUBSECTION_SIGN = 'ПДР'
 CHAPTER_SIGN = 'ГЛ'
+PARAGRAPH_SIGN = 'ПРГ'
+SUBPARAGRAPH_SIGN = 'ПДПРГ'
 ARTICLE_SIGN = 'СТ'
 NOTE_SIGN = 'ПР'
 PART_SIGN = 'Ч'
@@ -45,8 +48,10 @@ datePattern = re.compile(r'\d\d\.\d\d\.\d{4}')
 
 notePattern = re.compile(r'Примечани[ея][\.:\s]')
 
-upperLevelKeyPattern = re.compile(r'.*(?=/)')
 sectionNumberPattern = re.compile(r'[A-Za-z]+(?:\.[-–—\d]+)*')
+subsectionNumberPattern = re.compile(r'(?<=Подраздел\s)\d+[-–—\.\d]*(?=\.\s)')
+paragraphNumberPattern = re.compile(r'(?<=§\s)\d+[-–—\.\d]*(?=\.\s)')
+subparagraphNumberPattern = re.compile(r'(?<=^)\d+[-–—\.\d]*(?=\.\s)')
 chapterNumberPattern = re.compile(r'\d+')
 articleNumberPattern = re.compile(r'\d+[-–—\.\d]*(?=\.\s)')
 
@@ -139,19 +144,20 @@ def get_page(url, reqHeaders, prevResponse=None, referer=None):
 
 def get_subheaders_from_page(
         page, header, hKey, sign, host,
-        subHeaderNumberPattern, baseHeader, onlyFirst=True):
+        subHeaderNumberPattern, baseHeader, onlyFirst=True,
+        ignoreNoMatches=False):
     subElements = page.xpath('//contents/ul/li/a')
     subHeaders = {}
-    
+
     doc_type = f"{header['doc_type']}/{sign}"
     for s in subElements:
         title = s.text
         text_source_url = f"http://{host}{s.attrib['href']}"
-        if onlyFirst:
+        if onlyFirst and not ignoreNoMatches:
             match = [subHeaderNumberPattern.search(s.text)[0]]
         else:
             match = subHeaderNumberPattern.findall(s.text)
-        if not match:
+        if not match and not ignoreNoMatches:
             raise Exception(f'Error: Article {hkey} subheaders cannot parsed '
                             'with regexp "{subHeaderNumberPattern.pattern}"')
         for subHeaderNum in match:
@@ -163,7 +169,7 @@ def get_subheaders_from_page(
                 'release_date': baseHeader['release_date'],
                 'text_source_url': text_source_url
                 }
-        # break  #!!!only while debugging
+        #break  #!!!only while debugging
     return subHeaders
 
 
@@ -171,8 +177,11 @@ def get_subheaders_from_header_title(
         headerTitle, headerUrl, header, hKey, sign, subhStartPattern,
         subHeaderNumbersPattern, baseHeader):
     subHeaders = {}
-    spam = subhStartPattern.search(headerTitle)[0]
-    subhNums = subHeaderNumbersPattern.findall(spam)
+    spam = subhStartPattern.search(headerTitle)
+    if spam is None:
+        raise Exception(f"Error: Header {headerTitle}. "
+                        "Cannot get numbers of no more valid subheaders.")
+    subhNums = subHeaderNumbersPattern.findall(spam[0])
     title = headerTitle
     doc_type = f"{header['doc_type']}/{sign}"
     text_source_url = headerUrl

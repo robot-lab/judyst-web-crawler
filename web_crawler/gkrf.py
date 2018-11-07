@@ -4,9 +4,12 @@ else:
     from rf_legal_acts_processing_functions import *
 
 CODEX_URLS = (
-    'http://www.consultant.ru/document/cons_doc_LAW_19671',
-    'http://www.consultant.ru/document/cons_doc_LAW_28165')
-CODEX_PREFIX = 'НКРФ'
+    'http://www.consultant.ru/document/cons_doc_LAW_5142/',
+    'http://www.consultant.ru/document/cons_doc_LAW_9027/',
+    'http://www.consultant.ru/document/cons_doc_LAW_34154/',
+    'http://www.consultant.ru/document/cons_doc_LAW_64629/'
+    )
+CODEX_PREFIX = 'ГКРФ'
 CODEX_PART_SIGN = 'Ч'
 
 PART_SIGN = PUNKT_SIGN
@@ -73,48 +76,89 @@ def get_codex_content():
         codexHeaders.update(sectionHeaders)
         # end of sections processing
 
-        # start of chapters processing
+        # start of chapters and subsections processing
         chapterHeaders = {}
-        for key in sectionHeaders:
+        shdKeys = list(sectionHeaders.keys())
+        while shdKeys:
+            key = shdKeys[0]
             codexSectionPage, response = get_page(
                 sectionHeaders[key]['text_source_url'], reqHeaders,
                 response, codexHeaders[CODEX_PART_KEY]['text_source_url']
                 )
-            temp = get_subheaders_from_page(
-                    codexSectionPage, headerWithCodexDocType, CODEX_PREFIX,
-                    CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader
-                    )
-            chapterHeaders.update(temp)
+            subsectionsTemp = get_subheaders_from_page(
+                codexSectionPage, sectionHeaders[key], key,
+                SUBSECTION_SIGN, HOST, subsectionNumberPattern, baseHeader,
+                ignoreNoMatches=True
+                )
+            if subsectionsTemp:
+                codexHeaders.update(subsectionsTemp)
+                sectionHeaders.update(subsectionsTemp)
+                del sectionHeaders[key]
+                shdKeys.extend(subsectionsTemp.keys())
+            else:
+                temp = get_subheaders_from_page(
+                        codexSectionPage, headerWithCodexDocType, CODEX_PREFIX,
+                        CHAPTER_SIGN, HOST, chapterNumberPattern, baseHeader
+                        )
+                chapterHeaders.update(temp)
+            del shdKeys[0]
         codexHeaders.update(chapterHeaders)
-        # end of chapters processing
+        # end of chapters and subsections processing
 
         # start of first stage of articles processing
         articleHeaders = {}
-        for key in chapterHeaders:
+        chphKeys = list(chapterHeaders.keys())
+        #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_5142/783f9943d8039ff2e742ea93a317d52393568c0b/'
+        #chapterHeaders[chphKeys[0]]['text_source_url'] = testURL
+        while chphKeys:
+            key = chphKeys[0]
             codexChapterPage, response = get_page(
                 chapterHeaders[key]['text_source_url'], reqHeaders,
                 response, codexHeaders[CODEX_PART_KEY]['text_source_url']
                 )
-            ahs = get_subheaders_from_page(
-                    codexChapterPage, headerWithCodexDocType, CODEX_PREFIX,
-                    ARTICLE_SIGN, HOST, articlesNumbersPattern, baseHeader,
-                    onlyFirst=False
-                    )
-            if ahs:
-                articleHeaders.update(ahs)
-            else:
-                print(f"Warning: Chapter {key} is no more valid.")
-                ahs = get_subheaders_from_header_title(
-                    chapterHeaders[key]['title'],
-                    chapterHeaders[key]['text_source_url'],
-                    headerWithCodexDocType, CODEX_PREFIX,
-                    ARTICLE_SIGN, articlesStartPattern,
-                    articlesNumbersPattern, baseHeader
+            paragraphsTemp = get_subheaders_from_page(
+                codexChapterPage, chapterHeaders[key], key,
+                PARAGRAPH_SIGN, HOST, paragraphNumberPattern, baseHeader,
+                ignoreNoMatches=True
                 )
-                if ahs:
-                    articleHeaders.update(ahs)
+            if paragraphsTemp:
+                codexHeaders.update(paragraphsTemp)
+                chapterHeaders.update(paragraphsTemp)
+                del chapterHeaders[key]
+                chphKeys.extend(paragraphsTemp.keys())
+            else:
+                subparagraphsTemp = get_subheaders_from_page(
+                    codexChapterPage, chapterHeaders[key], key,
+                    SUBPARAGRAPH_SIGN, HOST, subparagraphNumberPattern, baseHeader,
+                    ignoreNoMatches=True
+                    )
+                if subparagraphsTemp:
+                    codexHeaders.update(subparagraphsTemp)
+                    chapterHeaders.update(subparagraphsTemp)
+                    del chapterHeaders[key]
+                    chphKeys.extend(subparagraphsTemp.keys())
                 else:
-                    raise Exception(f"Cannot get articles from chapter {key}")
+                    ahs = get_subheaders_from_page(
+                            codexChapterPage, headerWithCodexDocType, CODEX_PREFIX,
+                            ARTICLE_SIGN, HOST, articlesNumbersPattern, baseHeader,
+                            onlyFirst=False
+                            )
+                    if ahs:
+                        articleHeaders.update(ahs)
+                    else:
+                        print(f"Warning: Chapter {key} is no more valid.")
+                        ahs = get_subheaders_from_header_title(
+                            chapterHeaders[key]['title'],
+                            chapterHeaders[key]['text_source_url'],
+                            headerWithCodexDocType, CODEX_PREFIX,
+                            ARTICLE_SIGN, articlesStartPattern,
+                            articlesNumbersPattern, baseHeader
+                        )
+                        if ahs:
+                            articleHeaders.update(ahs)
+                        else:
+                            raise Exception(f"Cannot get articles from chapter {key}")
+            del chphKeys[0]
         codexHeaders.update(articleHeaders)
         # end of first stage of articles processing
 
@@ -126,7 +170,8 @@ def get_codex_content():
                   end='\r')  # debug
             numArt += 1  # debug
             # testURL = 'testUrl'
-            # articleHeaders[key]['text_source_url'] = testURL
+            #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_5142/'
+            #articleHeaders[key]['text_source_url'] = testURL
             codexArticlePage, response = get_page(
                 articleHeaders[key]['text_source_url'], reqHeaders,
                 response,
