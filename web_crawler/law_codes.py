@@ -1,5 +1,6 @@
 import re
 import random
+import zipfile
 
 # Import libs:
 
@@ -8,8 +9,6 @@ import urllib.request
 
 import lxml.html
 # License: BSD license; Installing: python -m pip install lxml
-
-# Note: KoAP RF is the base act which was used for developing of this functions
 
 _HOST = 'www.consultant.ru'
 _REQHEADERS = {
@@ -23,106 +22,111 @@ _REQHEADERS = {
              )
         ),
     'Host': _HOST,
-    'Accept-Language': 'ru-RU,ru;',
+    'Accept-Charset': 'utf-8',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     }
 
+_CODE_PART_SIGN = 'ЧК'
+_REDACTIONS_SIGN = 'РЕД'
 _SECTION_SIGN = 'Р'
 _SUBSECTION_SIGN = 'ПДР'
 _CHAPTER_SIGN = 'ГЛ'
 _PARAGRAPH_SIGN = 'ПРГ'
 _SUBPARAGRAPH_SIGN = 'ПДПРГ'
 _ARTICLE_SIGN = 'СТ'
-_NOTE_SIGN = 'ПР'
+_NOTE_SIGN = 'ПРМ'
 _PART_SIGN = 'Ч'
 _ABZATS_SIGN = 'А'
 _PUNKT_SIGN = 'П'
 _PODPUNKT_SIGN = 'ПП'
 
-_NOTE_NAME_PREFIX = '. Примечание '
-_PART_NAME_PREFIX = '. Часть '
-_PUNKT_NAME_PREFIX = '. Пункт '
-_PODPUNKT_NAME_PREFIX = '. Подпункт '
-_ABZATS_NAME_PREFIX = '. Абзац '
+_NOTE_NAME_PREFIX = 'Примечание'
+_PART_NAME_PREFIX = 'Часть '
+_PUNKT_NAME_PREFIX = 'Пункт '
+_PODPUNKT_NAME_PREFIX = 'Подпункт '
+_ABZATS_NAME_PREFIX = 'Абзац '
 
-_editionPattern = re.compile(r'ред.\s+от\s+\d\d\.\d\d\.\d{4}')
-_relPattern = re.compile(r'от\s+\d\d\.\d\d\.\d{4}')
-_datePattern = re.compile(r'\d\d\.\d\d\.\d{4}')
-
-_notePattern = re.compile(r'Примечани[ея][\.:\s]')
-
-_sectionNumberPattern = re.compile(r'[A-Za-z]+(?:\.[-–—\d]+)*')
-_subsectionNumberPattern = re.compile(r'(?<=Подраздел\s)\d+[-–—\.\d]*(?=\.\s)')
-_paragraphNumberPattern = re.compile(r'(?<=§\s)\d+[-–—\.\d]*(?=\.\s)')
-_subparagraphNumberPattern = re.compile(r'(?<=^)\d+[-–—\.\d]*(?=\.\s)')
-_chapterNumberPattern = re.compile(r'\d+')
-_articleNumberPattern = re.compile(r'\d+[-–—\.\d]*(?=\.\s)')
-
-_articlesStartPattern = re.compile(r'[Сс]тать[яи]\s.*')
+_sectionNumberPattern = re.compile(
+    r'(?<=Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
+_subsectionNumberPattern = re.compile(
+    r'(?<=Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+_paragraphNumberPattern = re.compile(r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+_subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
+_chapterNumberPattern = re.compile(r'(?<=Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+_articleNumberPattern = re.compile(
+    r'(?<=Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
 _articlesNumbersPattern = re.compile(
-    r'(?:(?<=[Сс]татья\s)\d+[-–—\.\d]*(?=\.\s)|'
-    r'(?<=[Сс]татья\s)\d+[-–—\.\d]*(?=\s)|(?<=[Сс]татья\s)\d+[-–—\.\d]*(?=\,)|'
-    r'(?<=[Сс]татья\s)\d+[-–—\.\d]*(?=\)))'
+    r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
+    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
+    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\s)|'
+    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\,)|'
+    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\)))'
     )
 
-_partNumberPattern = _articleNumberPattern
+_partNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\.)')
 _partNumberRangePattern = re.compile(
-    r'\d+[-–—\.\d]*\s+[-–—]\s+\d+[-–—\.\d]*(?=\s)')
-_partNumberRangeNumPattern = re.compile(r'\d+[-–—\.\d]*(?=\s)')
+   r'\d+(?:\.[-–—\d]+\.*?)*\s*?[-–—]\s*?\d+(?:\.[-–—\d]+\.*?)*(?=\.)')
+_partNumberRangeNumPattern = re.compile(r'\d+(?:\.[-–—\d]+)*')
 _partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
 
-_punktNumberPattern = re.compile(r'\d+[-–—\.\d]*(?=\)\s)')
+_punktNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\)\s)')
 _punktNumberRangePattern = re.compile(
-    r'\d+[-–—\.\d]*\)\s*?-\s*?\d+[-–—\.\d]*\)(?=\s)')
-_punktNumberRangeNumPattern = re.compile(
-    r'(?:\d+[-–—\.\d]*(?=\)\s)|\d+[-–—\.\d]*(?=\)[-–—]))')
-_punktNumberRangeNumLastNum = _partNumberRangeNumLastNum
+    r'\d+(?:\.[-–—\d]+)*\)\s*?-\s*?\d+(?:\.[-–—\d]+)*\)(?=\s)')
 
 _podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
 _podpunktNumberRangePattern = re.compile(
     r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
-_podpunktNumberRangeNumPattern = re.compile(
-    r'(?:[а-яa-z][-–—.а-яa-z]*(?=\)\s)|[а-яa-z][-–—.а-яa-z]*(?=\)-))')
-_podpunktNumberRangeNumLastNum = re.compile(r'[а-яa-z]+$')
 
-_rangeLabeledByWordsCheckPattern = re.compile(
-    r'(?:[Уу]тратил(?:[аи]|)\s*?силу|[Ии]сключен(?:[аы]|)\s)')
-_loneNoMoreValidAbzatsPattern = re.compile(r'^\s*?[аА]бзац\s')
-_rangeNoMoreValidAbzatsPattern = re.compile(r'^\s*?[аА]бзацы\s')
-_abzatsNumberRangePattern = re.compile(
-    r'(?<=[а-яА-я]\s)\s*?\d+\s*?[-–—]\s*?\d+')
-_abzatsWordRangePattern = re.compile(
-    r'(?<=[а-яА-я]\s)\s*?[а-яА-я]+\s*?[-–—]\s*?[а-яА-я]+')
+_noteCheckPattern = re.compile(
+    r'(?:Примечание.(?!\s[Уу]тратило силу\.)|'
+    r'Примечания(?:\.|:))(?!\s[Уу]тратили силу\.)')
+_noteWordDelPattern = re.compile(
+    r'(?:Примечание.\s+|Примечания:\s+|Примечания.\s+)')
+_partNumberDelPattern = re.compile(r'\d+(?:\.[-–—\d]+)*\.\s*')
+_redactionBlockPattern = re.compile(
+    rf'(?:(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
+    rf'(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*)')
 
-_ordinalNumbersDict = {
-    'первый': 1,
-    'второй': 2,
-    'третий': 3,
-    'четвертый': 4,
-    'четвёртый': 4,
-    'пятый': 5,
-    'шестой': 6,
-    'седьмой': 7,
-    'восьмой': 8,
-    'девятый': 9,
-    'десятый': 10,
-    'одиннадцатый': 11,
-    'двенадцатый': 12,
-    'тринадцатый': 13,
-    'четырнадцатый': 14,
-    'пятнадцатый': 15,
-    'шестнадцатый': 16,
-    'семнадцатый': 17,
-    'восемнадцатый': 18,
-    'двадцатый': 20
-}
 
 _justNumberPattern = re.compile(r'\d+')
-_justWordPattern = re.compile(r'[а-яА-я]+')
+_justWordPattern = re.compile(r'[а-яА-яёЁ]+')
 
-_enumerationCheckPattern = re.compile(r'[-–—:]+\s*?$')
-_lastEnumElCheckPattern = re.compile(r'[\.]+\s*?$')
-_endsWithDashCheckPattern = re.compile(r'[-–—]+\s*?$')
+_datePattern = re.compile(r'\d\d\.\d\d\.\d{4}')
+_monthDict = {
+    'января': '01',
+    'февраля': '02',
+    'марта': '03',
+    'апреля': '04',
+    'мая': '05',
+    'июня': '06',
+    'июля': '07',
+    'августа': '08',
+    'сентября': '09',
+    'октября': '10',
+    'ноября': '11',
+    'декабря': '12'
+}
+
+_strDatePattern = re.compile(r'.*?(?=\sгода)')
+_comparRdNumPattern1 = re.compile(r'(?<=&diff=)\d+')
+_compareRdNumPattern2 = re.compile(r'(?<=&n=)\d+')
+
+_parHtmlPattern = re.compile(r'(?:\<div[\w\W]*?(?=\<a id="Par)|\<div.*div\>)')
+_parLabelInSavedHtmlPattern = re.compile(r'(?<=#Par)\d+(?=")')
+_titleInSaveHtmContentsPattern = re.compile(
+    r'(?:(?<=>◦).*?(?=<)|(?<=>)[А-Яа-яEё§\d].*?(?=<))')
+_savedHtmContentsPattern = re.compile(r'\<div[\w\W]*?\<table')
+_parInStrInSavedHtmPattern = re.compile(r'(?<=id="Par)\d+(?=")')
+_emptyLinePattern = re.compile(
+    r'<div class="(?:\w+\s+){2}\w+"(?:\s*?style=".*?")*?></div>')
+_notArticleLineStart = '<div class="s2B aC bH'
+_articleLineStart = '<div class="s2B aJ bH'
+_strsForDel1Start = '<table border'
+_strsForDel2Start = '<tr style'
+_consNoteStart = '<td class="bD'
+_redactionNoteCheckPattern = re.compile(
+    r'<div class="(?:\w+\s+){2}\w+"(?:\s*?style=".*?")*?>\(')
+_articleTextStart = '<div class="s0 aJ bG'
 
 
 def _get_cookie(response):
@@ -131,6 +135,7 @@ def _get_cookie(response):
         if h[0] == 'Set-Cookie':
             cookie += h[1].split(';', maxsplit=1)[0] + '; '
     return cookie
+
 
 def _get_page(url, reqHeaders, prevResponse=None, referer=None, raw=False):
     if prevResponse is not None:
@@ -147,357 +152,13 @@ def _get_page(url, reqHeaders, prevResponse=None, referer=None, raw=False):
         return (response.read(), response)
 
 
-def _get_subheaders_from_page(
-        page, header, hKey, sign, host,
-        subHeaderNumberPattern, baseHeader, absolutePath, onlyFirst=True,
-        ignoreNoMatches=False):
-    subElements = page.xpath('//contents/ul/li/a')
-    subHeaders = {}
-
-    doc_type = f"{header['doc_type']}/{sign}"
-    for s in subElements:
-        title = s.text
-        text_source_url = f"http://{host}{s.attrib['href']}"
-        if onlyFirst and not ignoreNoMatches:
-            match = [subHeaderNumberPattern.search(s.text)[0]]
-        else:
-            match = subHeaderNumberPattern.findall(s.text)
-        if not match and not ignoreNoMatches:
-            raise Exception(f'Error: Article {hkey} subheaders cannot parsed '
-                            'with regexp "{subHeaderNumberPattern.pattern}"')
-        for subHeaderNum in match:
-            docidLastPart = f"/{sign}-{subHeaderNum}".upper()
-            docID = f"{hKey}" + docidLastPart
-            subHeaders[docID] = {
-                'supertype': baseHeader['supertype'],
-                'doc_type': doc_type,
-                'absolute_path': absolutePath + docidLastPart,
-                'title': title,
-                'release_date': baseHeader['release_date'],
-                'text_source_url': text_source_url
-                }
-        #break  #!!!only while debugging
-    return subHeaders
-
-
-def _get_subheaders_from_header_title(
-        headerTitle, headerUrl, header, hKey, sign, subhStartPattern,
-        subHeaderNumbersPattern, baseHeader, absolutePath):
-    subHeaders = {}
-    spam = subhStartPattern.search(headerTitle)
-    if spam is None:
-        raise Exception(f"Error: Header {headerTitle}. "
-                        "Cannot get numbers of no more valid subheaders.")
-    subhNums = subHeaderNumbersPattern.findall(spam[0])
-    title = headerTitle
-    doc_type = f"{header['doc_type']}/{sign}"
-    text_source_url = headerUrl
-    for subHeaderNum in subhNums:
-        docidLastPart = f"/{sign}-{subHeaderNum}".upper()
-        docID = f"{hKey}" + docidLastPart
-        subHeaders[docID] = {
-            'supertype': baseHeader['supertype'],
-            'doc_type': doc_type,
-            'absolute_path': absolutePath + docidLastPart,
-            'title': title,
-            'release_date': baseHeader['release_date'],
-            'text_source_url': text_source_url
-            }
-    return subHeaders
-
-
-def _get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
-        header, hKey, stringList, subhSign, subhNamePrefix,
-        subhNumRangePattern, subhNumRangeNumPattern,
-        subhNumRangeNumLastNum, baseHeader, absolutePath):
-    subhRangeStrings = []
-    indexesForDeleting = []
-    for i in range(len(stringList)):
-        if subhNumRangePattern.match(stringList[i]) is not None:
-            subhRangeStrings.append(stringList[i])
-            indexesForDeleting.append(i)
-    correction = 0
-    for i in indexesForDeleting:
-        del stringList[i-correction]
-        correction += 1
-    subheaders = {}
-    for p in subhRangeStrings:
-        strRange = subhNumRangePattern.match(p)[0]
-        commonText = p.replace(strRange, '').strip()
-        rangeNums = subhNumRangeNumPattern.findall(p)
-        numTemplate = rangeNums[0].rstrip('\.')
-        if subhNumRangeNumLastNum.search(rangeNums[0])[0].isdigit():
-            first = int(subhNumRangeNumLastNum.search(rangeNums[0])[0])
-            last = int(subhNumRangeNumLastNum.search(rangeNums[1])[0])
-
-            doc_type = f"{header['doc_type']}/{subhSign}"
-            text_source_url = header['text_source_url']
-            for i in range(first, last+1):
-                subhNum = subhNumRangeNumLastNum.sub(str(i), numTemplate)
-                docidLastPart = f"/{subhSign}-{subhNum}".upper()
-                docID = f"{hKey}" + docidLastPart
-                title = header['title'] + subhNamePrefix + subhNum
-                subheaders[docID] = {
-                    'supertype': baseHeader['supertype'],
-                    'doc_type': doc_type,
-                    'absolute_path': absolutePath + docidLastPart,
-                    'title': title,
-                    'release_date': baseHeader['release_date'],
-                    'text_source_url': text_source_url,
-                    'text': commonText
-                    }
-        else:
-            first = ord(subhNumRangeNumLastNum.search(rangeNums[0])[0])
-            last = ord(subhNumRangeNumLastNum.search(rangeNums[1])[0])
-            doc_type = f"{header['doc_type']}/{subhSign}"
-            text_source_url = header['text_source_url']
-            for i in range(first, last+1):
-                subhNum = subhNumRangeNumLastNum.sub(chr(i), numTemplate)
-                title = header['title'] + subhNamePrefix + subhNum
-                docidLastPart = f"/{subhSign}-{subhNum}".upper()
-                docID = f"{hKey}" + docidLastPart
-                subheaders[docID] = {
-                    'supertype': baseHeader['supertype'],
-                    'doc_type': doc_type,
-                    'absolute_path': absolutePath + docidLastPart,
-                    'title': title,
-                    'release_date': baseHeader['release_date'],
-                    'text_source_url': text_source_url,
-                    'text': commonText
-                    }
-    return subheaders
-
-
-def _get_subheaders_indexes(stringList, subhNumPattern):
-    subhIndexes = []
-    for i in range(len(stringList)):
-        if subhNumPattern.match(stringList[i]) is not None:
-            subhIndexes.append(i)
-    return subhIndexes
-
-
-def _get_subheaders_from_strings_by_indexes(
-        header, hKey, stringList, subhIndexes, subhSign, subhNamePrefix,
-        subhNumPattern, baseHeader, absolutePath):
-    subhListStringList = []
-    if subhIndexes is not None:
-        for i in range(len(subhIndexes)):
-            try:
-                subhListStringList.append(
-                    stringList[subhIndexes[i]:subhIndexes[i+1]])
-            except IndexError:
-                subhListStringList.append(stringList[subhIndexes[i]:])
-    else:
-        for s in stringList:
-            subhListStringList.append([s])
-    subhDictStringList = {}
-    subheaders = {}
-
-    doc_type = f"{header['doc_type']}/{subhSign}"
-    text_source_url = header['text_source_url']
-    for i in range(len(subhListStringList)):
-
-        if subhNumPattern is not None:
-            subhNum = subhNumPattern.search(subhListStringList[i][0])[0]
-        elif subhIndexes is None or len(subhIndexes) > 1:
-            subhNum = str(i+1)
-        else:
-            subhNum = str(0)
-        title = header['title'] + subhNamePrefix + subhNum
-        docidLastPart = f"/{subhSign}-{subhNum}".upper()
-        docID = f"{hKey}" + docidLastPart
-        subhText = '\n'.join(subhListStringList[i])
-        subhDictStringList[docID] = subhListStringList[i]
-        subheaders[docID] = {
-            'supertype': baseHeader['supertype'],
-            'doc_type': doc_type,
-            'absolute_path': absolutePath + docidLastPart,
-            'title': title,
-            'release_date': baseHeader['release_date'],
-            'text_source_url': text_source_url,
-            'text': subhText
-            }
-    return (subheaders, subhDictStringList)
-
-
-def _get_subheaders_range_labeled_by_words_instead_numbers(
-        allGottenHeaders, rejectingPatterns, header, hKey, stringList,
-        subhSign, subhNamePrefix, subhNumPattern, baseHeader, absolutePath,
-        thisFirstCall=False):
-    ZABIT_NA_ABZATSI = True
-    if len(stringList) == 1:
-        return
-    indexesStrsLabeledByWords = []
-    subhNums = set()
-    i = 0
-    while i < len(stringList):
-        if subhNumPattern.match(stringList[i]) is not None:
-            subhNums.add(
-                int(_justNumberPattern.search(stringList[i])[0]))
-            i += 1
-            continue
-        eggs = False
-        for pattern in rejectingPatterns:
-            if pattern.match(stringList[i]) is not None:
-                eggs = True
-                break
-        if eggs:
-            i += 1
-            continue
-        if _rangeLabeledByWordsCheckPattern.search(stringList[i],
-                                                  endpos=70) is not None:
-            if (_rangeNoMoreValidAbzatsPattern.match(stringList[i]) is None and
-                    _rangeLabeledByWordsCheckPattern.match(
-                        stringList[i]) is None):
-                print(f'Warning: Article {hKey} has a range labeled by words.')
-                indexesStrsLabeledByWords.append(i)
-            elif thisFirstCall and not ZABIT_NA_ABZATSI:
-                numNoMoreValidAbzatsInRange = 0
-                match = _abzatsNumberRangePattern.search(stringList[i])
-                if match is not None:
-                    nr = _justNumberPattern.findall(match[0])
-                    numNoMoreValidAbzatsInRange = int(nr[1]) - int(nr[0]) + 1
-                else:
-                    match = _abzatsWordRangePattern.search(stringList[i])
-                    if match is not None:
-                        wnr = _justWordPattern.findall(match[0])
-                        try:
-                            numNoMoreValidAbzatsInRange = \
-                                (_ordinalNumbersDict[wnr[1]] -
-                                    _ordinalNumbersDict[wnr[0]] + 1)
-                        except KeyError:
-                            raise Exception(f"Error: Article {hKey} has range "
-                                            "labeled word that no more valid "
-                                            "abzats. But 'ordinalNumbersDict' "
-                                            "doesn't contain some word from "
-                                            "this words")
-                    else:
-                        raise Exception(f"Error: Article {hKey} has abzats "
-                                        "range labeled by words. But program"
-                                        " couldn't choose numbers from this "
-                                        "range.")
-                commonText = stringList[i]
-                del stringList[i]
-                for n in range(numNoMoreValidAbzatsInRange):
-                    stringList.insert(i, commonText)
-                for j in range(len(indexesStrsLabeledByWords)):
-                    if indexesStrsLabeledByWords[j] > i:
-                        indexesStrsLabeledByWords[j] += \
-                            numNoMoreValidAbzatsInRange - 1
-                i += numNoMoreValidAbzatsInRange - 1
-
-        # next iteration:
-        i += 1
-    for index in indexesStrsLabeledByWords:
-        try:
-            if subhNumPattern.match(stringList[index+1]) is not None:
-                lastNum = int(_justNumberPattern.search(stringList[index+1])[0])
-                doc_type = f"{header['doc_type']}/{subhSign}"
-                text_source_url = header['text_source_url']
-                for num in range(1, lastNum):
-                    subhNum = str(num)
-                    docidLastPart = f"/{subhSign}-{subhNum}".upper()
-                    docID = f"{hKey}" + docidLastPart
-                    if (num not in subhNums and
-                            docID not in allGottenHeaders):
-                        commonText = stringList[index]
-                        title = header['title'] + subhNamePrefix + subhNum
-                        allGottenHeaders[docID] = {
-                            'supertype': baseHeader['supertype'],
-                            'doc_type': doc_type,
-                            'absolute_path': absolutePath + docidLastPart,
-                            'title': title,
-                            'release_date': baseHeader['release_date'],
-                            'text_source_url': text_source_url,
-                            'text': commonText
-                            }
-            else:
-                print(f"Warning: Article {hKey} has abzats after range"
-                      " labeled by words.")
-                return
-                # raise Exception(f"Error: Article {hKey} has abzats after "
-                #                 "range labeled by words.")
-        except IndexError:
-            print(f"Warning: Article {hKey} has range labeled by "
-                  "words. This range is the last abzats in the "
-                  "Article, so program can't get number of "
-                  "subheaders.")
-            return
-            # raise Exception(f"Error: Article {hKey} has range labeled by "
-            #                 "words. This range is the last abzats in the "
-            #                 "Article, so program can't get number of "
-            #                 "subheaders.")
-    for index in indexesStrsLabeledByWords:
-        del stringList[index]
-
-
-def process_unique_subhs_abzats_together(
-        header, hKey, stringList, subhIndexes, subhSign, subhNamePrefix,
-        baseHeader, absolutePath):
-    subheaders = {}
-    abzatsDiapazonsIndexes = []
-    abzatsDiapazonsIndexes1 = []
-    abzatsDiapazonsIndexes2 = []
-    stringToDeleteIndexes = []
-    egg1 = egg2 = False
-    if len(stringList[:subhIndexes[0]]) > 1:
-        egg1 = True
-        for i in range(subhIndexes[0]-1):
-            abzatsDiapazonsIndexes1.append([i, i])
-        abzatsDiapazonsIndexes1.append([subhIndexes[0]-1, len(stringList)-1])
-        # raise Exception(f"Error: Article {hKey} has multiple abzats before "
-        #                 "subheaders.")
-    if _enumerationCheckPattern.search(
-                        stringList[subhIndexes[-1]]) is None:
-        if subhIndexes[-1] != len(stringList)-1:
-            egg2 = True
-            abzatsDiapazonsIndexes2.append([0, subhIndexes[-1]])
-            for i in range(subhIndexes[-1]+1, len(stringList)):
-                abzatsDiapazonsIndexes2.append([i, i])
-                stringToDeleteIndexes.append(i)
-        else:
-            pass  # return subheaders
-    elif _lastEnumElCheckPattern.search(stringList[-2]) is not None:
-        pass  # checked: it works fine in nkrf
-        # raise Exception(f"Error: Article {hKey} has abzats after end of "
-        #                 "enumeration.")
-    if egg1 and egg2:
-        # raise Exception(f"Error: Article {hKey} has multiple abzats before "
-        #                 "subheaders and abzats related to header after "
-        #                 "subheaders simultaneously.")
-        stringToDeleteIndexes = []
-        abzatsDiapazonsIndexes1[-1][1] = abzatsDiapazonsIndexes2[0][1] - 1
-        del abzatsDiapazonsIndexes2[0]
-        abzatsDiapazonsIndexes.extend(abzatsDiapazonsIndexes1)
-        abzatsDiapazonsIndexes.extend(abzatsDiapazonsIndexes2)
-    elif egg1:
-        abzatsDiapazonsIndexes = abzatsDiapazonsIndexes1
-    else:
-        abzatsDiapazonsIndexes = abzatsDiapazonsIndexes2
-
-    doc_type = f"{header['doc_type']}/{subhSign}"
-    text_source_url = header['text_source_url']
-    for i in range(len(abzatsDiapazonsIndexes)):
-        subhNum = str(i+1)
-        title = header['title'] + subhNamePrefix + subhNum
-        docidLastPart = f"/{subhSign}-{subhNum}".upper()
-        docID = f"{hKey}" + docidLastPart
-        subhText = '\n'.join(stringList[
-            abzatsDiapazonsIndexes[i][0]:abzatsDiapazonsIndexes[i][1]+1])
-        subheaders[docID] = {
-            'supertype': baseHeader['supertype'],
-            'doc_type': doc_type,
-            'absolute_path': absolutePath + docidLastPart,
-            'title': title,
-            'release_date': baseHeader['release_date'],
-            'text_source_url': text_source_url,
-            'text': subhText
-            }
-    correction = 0
-    for i in stringToDeleteIndexes:
-        del stringList[i-correction]
-        correction += 1
-    return subheaders
+def _decode_json_from_str(content):
+    try:
+        structure = json.loads(content, encoding='utf-8')
+    except UnicodeDecodeError:
+        content = content.decode('windows-1251').encode('utf-8')
+        structure = json.loads(content, encoding='utf-8')
+    return structure
 
 
 class _BaseCode:
@@ -507,11 +168,10 @@ class _BaseCode:
         'http://www.consultant.ru/document/Кодекс_часть3/',
         )
     CODE_PREFIX = 'Аббревиатура кодекса'
-    CODE_PART_SIGN = 'Часть кодекса (отдельный документ)'
+    CODE_PART_NAMES = ('Кодекс Ч1', 'Кодекс Ч2', 'Кодекс Ч3')
+    CODE_PART_SIGN = _CODE_PART_SIGN
 
-    HOST = _HOST
-    REQHEADERS = _REQHEADERS
-        
+    REDACTIONS_SIGN = _REDACTIONS_SIGN
     SECTION_SIGN = _SECTION_SIGN
     SUBSECTION_SIGN = _SUBSECTION_SIGN
     CHAPTER_SIGN = _CHAPTER_SIGN
@@ -523,445 +183,776 @@ class _BaseCode:
     ABZATS_SIGN = _ABZATS_SIGN
     PUNKT_SIGN = _PUNKT_SIGN
     PODPUNKT_SIGN = _PODPUNKT_SIGN
-    
+
     NOTE_NAME_PREFIX = _NOTE_NAME_PREFIX
     PART_NAME_PREFIX = _PART_NAME_PREFIX
     PUNKT_NAME_PREFIX = _PUNKT_NAME_PREFIX
     PODPUNKT_NAME_PREFIX = _PODPUNKT_NAME_PREFIX
     ABZATS_NAME_PREFIX = _ABZATS_NAME_PREFIX
-        
-    editionPattern = _editionPattern
-    relPattern = _relPattern
-    datePattern = _datePattern
-        
-    notePattern = _notePattern
-        
+
     sectionNumberPattern = _sectionNumberPattern
     subsectionNumberPattern = _subsectionNumberPattern
     paragraphNumberPattern = _paragraphNumberPattern
     subparagraphNumberPattern = _subparagraphNumberPattern
     chapterNumberPattern = _chapterNumberPattern
     articleNumberPattern = _articleNumberPattern
-        
-    articlesStartPattern = _articlesStartPattern
+
     articlesNumbersPattern = _articlesNumbersPattern
-        
+
     partNumberPattern = _partNumberPattern
     partNumberRangePattern = _partNumberRangePattern
     partNumberRangeNumPattern = _partNumberRangeNumPattern
     partNumberRangeNumLastNum = _partNumberRangeNumLastNum
-        
+
     punktNumberPattern = _punktNumberPattern
     punktNumberRangePattern = _punktNumberRangePattern
-    punktNumberRangeNumPattern = _punktNumberRangeNumPattern
-    punktNumberRangeNumLastNum = _punktNumberRangeNumLastNum
-        
+
     podpunktNumberPattern = _podpunktNumberPattern
     podpunktNumberRangePattern = _podpunktNumberRangePattern
-    podpunktNumberRangeNumPattern = _podpunktNumberRangeNumPattern
-    podpunktNumberRangeNumLastNum = _podpunktNumberRangeNumLastNum
 
-    loneNoMoreValidAbzatsPattern = _loneNoMoreValidAbzatsPattern
+    noteCheckPattern = _noteCheckPattern
+    noteWordDelPattern = _noteWordDelPattern
+    partNumberDelPattern = _partNumberDelPattern
+    redactionBlockPattern = re.compile(
+        rf'(?:(?<=/){REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
+        rf'(?<=/){REDACTIONS_SIGN}-[-N\.\d]*)')
 
-    lastEnumElCheckPattern = _lastEnumElCheckPattern
-    endsWithDashCheckPattern = _endsWithDashCheckPattern
+    @classmethod
+    def get_document_redactions(cls, url, reqHeaders, prevResponse=None,
+                                referer=None):
+        page, response = _get_page(url, reqHeaders, prevResponse, referer)
+        lastRedNum = page.xpath('//q[@id="fullTextLink"]')[0].attrib['nd']
+        reqRedUrl = (f"http://{_HOST}/cons/cgi/online.cgi?req=doc&base=LAW"
+                     f"&n={lastRedNum}&content=editions")
+        content, response = _get_page(reqRedUrl, reqHeaders, response, url,
+                                      raw=True)
+        jsonRedactions = _decode_json_from_str(content)
+        return jsonRedactions['editions']['list'], response
+
+    @classmethod
+    def create_header(cls, CUR_RD_KEY, supertype, doc_type, absolute_path,
+                      title, release_date, effective_date, attached, dstLabel,
+                      parLabelInSavedHtm, rdNote=None, consNote=None,
+                      text=None):
+        attached.append(cls.CUR_CODE_PART_NAME)
+        t = cls.codeHeaders[CUR_RD_KEY]
+        ts = t['cons_selected_info']
+        il = (f"http://{_HOST}/cons/cgi/online.cgi?req=query"
+              f"&REFDOC={ts['rd_doc_number']}&REFBASE=LAW&REFPAGE=0"
+              f"&REFTYPE=CDLT_CHILDLESS_CONTENTS_ITEM_MAIN_BACKREFS"
+              f"&mode=backrefs&REFDST={dstLabel}")
+        header = {
+            'supertype': supertype,
+            'doc_type': doc_type,
+            'absolute_path': absolute_path,
+            'title': title,
+            'release_date': release_date,
+            'effective_date': effective_date,
+            'text_source_url':
+                f"{t['text']['filename']}#Par{parLabelInSavedHtm}",
+            'cons_selected_info': {
+                'rd_doc_number': ts['rd_doc_number'],
+                'rd_doc_link': f"{ts['rd_doc_link']}&dst={dstLabel}",
+                'intext_label': dstLabel,
+                'redaction_comparison_link':
+                    f"{ts['redaction_comparison_link']}&dst={dstLabel}",
+                'addit_info_link': il,
+                'attached_titles': attached
+                }
+            }
+        if text is not None:
+            header['text'] = text
+        if rdNote is not None:
+            header['cons_selected_info']['redaction_note'] = rdNote
+        if consNote is not None:
+            header['cons_selected_info']['cons_note'] = consNote
+        return header
+
+    @classmethod
+    def create_subheader(cls, hKey, SUBH_SIGN, absolute_path, title,
+                         rdNote=None, consNote=None, text=None):
+        t = cls.codeHeaders[hKey]
+        ts = t['cons_selected_info']
+        attached = ts['attached_titles'][:]
+        attached.insert(0, title)
+        header = {
+            'supertype': t['supertype'],
+            'doc_type': f"{cls.codeHeaders[hKey]['doc_type']}/{SUBH_SIGN}",
+            'absolute_path': absolute_path,
+            'title': title,
+            'release_date': t['release_date'],
+            'effective_date': t['effective_date'],
+            'text_source_url': t['text_source_url'],
+            'cons_selected_info': {
+                'rd_doc_number': ts['rd_doc_number'],
+                'rd_doc_link': ts['rd_doc_link'],
+                'intext_label': ts['intext_label'],
+                'redaction_comparison_link':
+                    ts['redaction_comparison_link'],
+                'attached_titles': attached
+                }
+            }
+        if text is not None:
+            header['text'] = text
+        if rdNote is not None:
+            header['cons_selected_info']['redaction_note'] = rdNote
+        if consNote is not None:
+            header['cons_selected_info']['cons_note'] = consNote
+        return header
+
+    @classmethod
+    def get_subhdrs_frm_tree_and_return_lines_for_articles(
+            cls, treeItem, hKey, CUR_RD_KEY, rekeyedAttachedTitles,
+            splittedHtm):
+        def frequent_case(SIGN, numPattern, item):
+            nonlocal hKey
+            nonlocal supertype
+            nonlocal doc_type
+            nonlocal absolute_path
+            nonlocal title
+            nonlocal release_date
+            nonlocal effective_date
+            nonlocal attached
+            nonlocal dstLabel
+            nonlocal htmParNum
+            nonlocal rekeyedAttachedTitles
+            nonlocal CUR_RD_KEY
+            nonlocal articleLines
+            nonlocal rd_doc_id_prefix
+            nonlocal splittedHtm
+            num = numPattern.search(item['caption'])
+            if num is not None:
+                commonPart = f"{SIGN}-{num[0].lstrip()}"
+                if (numPattern == cls.sectionNumberPattern or
+                        numPattern == cls.chapterNumberPattern):
+                    doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                else:
+                    doc_id = f"{hKey}/{commonPart}"
+                doc_type = f"{cls.CODE_PREFIX}/{SIGN}"
+                absolute_path = \
+                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
+                cls.codeHeaders[doc_id] = cls.create_header(
+                    CUR_RD_KEY, supertype, doc_type, absolute_path, title,
+                    release_date, effective_date, attached, dstLabel,
+                    htmParNum, rdNote, consNote)
+                # debug print
+                cls.recursCounter += 1
+                print(f"Recursive processing of headers up to and including "
+                      f"articles {cls.recursCounter}...", end='\r')
+                if splittedHtm[title]['type'] == cls.ARTICLE_SIGN:
+                    articleLines[doc_id] = splittedHtm[title]['lines']
+                if item['treeItem']:
+                    articleLines.update(
+                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
+                            item['treeItem'], doc_id, CUR_RD_KEY,
+                            rekeyedAttachedTitles, splittedHtm
+                            )
+                        )
+                else:
+                    return 'tree is null'
+            else:
+                return 'parsed is null'
+
+        articleLines = {}
+        supertype = cls.CODE_PREFIX
+        rd_doc_id_prefix = \
+            (f"{cls.CODE_PREFIX}/"
+             f"{cls.redactionBlockPattern.search(CUR_RD_KEY)[0]}")
+        release_date = cls.codeHeaders[CUR_RD_KEY]['release_date']
+        effective_date = cls.codeHeaders[CUR_RD_KEY]['effective_date']
+
+        cls.partOfCodeCounter = 1
+        for item in treeItem:
+            if 'caption' not in item:
+                commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
+                doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                absolute_path = \
+                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
+                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
+                title = item['_text']
+                dstLabel = item['label']
+                attached = rekeyedAttachedTitles[title]['tooltip']
+                htmParNum = splittedHtm[title]['htmParNum']
+                if 'cons_note' in splittedHtm[title]:
+                    consNote = splittedHtm[title]['cons_note']
+                else:
+                    consNote = None
+                if 'redaction_note' in splittedHtm[title]:
+                    rdNote = splittedHtm[title]['redaction_note']
+                else:
+                    rdNote = None
+                cls.codeHeaders[doc_id] = cls.create_header(
+                    CUR_RD_KEY, supertype, doc_type, absolute_path, title,
+                    release_date, effective_date, attached, dstLabel,
+                    htmParNum, rdNote, consNote)
+                # debug print
+                cls.recursCounter += 1
+                print(f"Recursive processing of headers up to and including "
+                      f"articles {cls.recursCounter}...", end='\r')
+                if item['treeItem']:
+                    articleLines.update(
+                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
+                            item['treeItem'], doc_id, CUR_RD_KEY,
+                            rekeyedAttachedTitles, splittedHtm
+                            )
+                        )
+                else:
+                    return articleLines
+                continue
+
+            title = item['caption'] + item['_text']
+            dstLabel = item['label']
+            attached = rekeyedAttachedTitles[title]['tooltip']
+            htmParNum = splittedHtm[title]['htmParNum']
+            if 'cons_note' in splittedHtm[title]:
+                    consNote = splittedHtm[title]['cons_note']
+            else:
+                consNote = None
+            if 'redaction_note' in splittedHtm[title]:
+                rdNote = splittedHtm[title]['redaction_note']
+            else:
+                rdNote = None
+
+            spam = frequent_case(cls.SECTION_SIGN, cls.sectionNumberPattern,
+                                 item)
+            if spam == 'tree is null':
+                return articleLines
+            elif spam != 'parsed is null':
+                continue
+            spam = frequent_case(cls.SUBSECTION_SIGN,
+                                 cls.subsectionNumberPattern, item)
+            if spam == 'tree is null':
+                return articleLines
+            elif spam != 'parsed is null':
+                continue
+            spam = frequent_case(cls.CHAPTER_SIGN, cls.chapterNumberPattern,
+                                 item)
+            if spam == 'tree is null':
+                return articleLines
+            elif spam != 'parsed is null':
+                continue
+            spam = frequent_case(cls.PARAGRAPH_SIGN,
+                                 cls.paragraphNumberPattern, item)
+            if spam == 'tree is null':
+                return articleLines
+            elif spam != 'parsed is null':
+                continue
+            spam = frequent_case(cls.SUBPARAGRAPH_SIGN,
+                                 cls.subparagraphNumberPattern, item)
+            if spam == 'tree is null':
+                return articleLines
+            elif spam != 'parsed is null':
+                continue
+            nums = cls.articlesNumbersPattern.findall(item['caption'])
+            if not nums:
+                rangeNums = cls.partNumberRangePattern.search(item['caption'])
+                if rangeNums is None:
+                    rangeNums = cls.partNumberRangePattern.search(
+                        item['caption']+item['_text'])
+                if rangeNums is not None:
+                    rNums = cls.partNumberRangeNumPattern.findall(rangeNums[0])
+                    template = rNums[0]
+                    digitFrom = int(
+                        cls.partNumberRangeNumLastNum.search(rNums[0])[0])
+                    digitTo = int(
+                        cls.partNumberRangeNumLastNum.search(rNums[1])[0])
+                for i in range(digitFrom, digitTo+1):
+                    num = cls.partNumberRangeNumLastNum.sub(str(i), template)
+                    nums.append(num)
+            if nums:
+                for num in nums:
+                    commonPart = f"{cls.ARTICLE_SIGN}-{num.lstrip()}"
+                    doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                    absolute_path = \
+                        (f"{cls.codeHeaders[hKey]['absolute_path']}/"
+                         f"{commonPart}")
+                    doc_type = f"{cls.CODE_PREFIX}/{cls.ARTICLE_SIGN}"
+                    cls.codeHeaders[doc_id] = cls.create_header(
+                        CUR_RD_KEY, supertype, doc_type, absolute_path, title,
+                        release_date, effective_date, attached, dstLabel,
+                        htmParNum, rdNote, consNote)
+                    # debug print
+                    cls.recursCounter += 1
+                    print(
+                        f"Recursive processing of headers up to and including "
+                        f"articles {cls.recursCounter}...", end='\r')
+                    if item['treeItem']:
+                        raise Exception(f"Article cannot have an treeItem.")
+                    else:
+                        articleLines[doc_id] = splittedHtm[title]['lines']
+            else:
+                raise Exception(f"{hKey}. Cannot parse a number.")
+        return articleLines
+
+    @classmethod
+    def get_par_html(cls, allHtml: str, par: int):  # not used anymore
+        parStartPattern = re.compile(f'<a id="Par{par}"')
+        startPos = parStartPattern.search(allHtml).start(0)
+        parHtml = _parHtmlPattern.search(allHtml, pos=startPos)
+        if parHtml is not None:
+            return lxml.html.document_fromstring(parHtml[0])
+        else:
+            raise Exception("Cannot find par in html.")
+
+    @classmethod
+    def get_paras_and_titles_from_saved_htm(cls, savedHtm):
+        savedHtmContents = _savedHtmContentsPattern.search(savedHtm)[0]
+        lines = savedHtmContents.splitlines()
+        result = {}
+        for line in lines:
+            match = _parLabelInSavedHtmlPattern.search(line)
+            if match is not None:
+                par = match[0]
+                title = _titleInSaveHtmContentsPattern.search(line)
+                result[par] = title[0]
+        return result
+
+    @classmethod
+    def split_saved_htm(cls, savedHtm):
+        lines = savedHtm.splitlines()
+        result = {}
+        start = end = continueSearch = nextSearchStart = 0
+        rotten = True
+        egg = False
+        parasTitles = cls.get_paras_and_titles_from_saved_htm(savedHtm)
+        while egg is not rotten:
+            for i in range(nextSearchStart, len(lines)):
+                if _emptyLinePattern.match(lines[i]) is not None:
+                    start = i + 1
+                    continue
+                if lines[i].startswith(_notArticleLineStart):
+                    materialType = 'not ' + cls.ARTICLE_SIGN
+                elif lines[i].startswith(_articleLineStart):
+                    materialType = cls.ARTICLE_SIGN
+                else:
+                    continue
+                match = _parInStrInSavedHtmPattern.search(lines[i])
+                if match is None:
+                    continue
+                htmParNum = match[0]
+                title = parasTitles[htmParNum].\
+                    replace('&sect;', '§').\
+                    replace('&quot;', '"')
+                for z in range(i+1, len(lines)):
+                    if _emptyLinePattern.match(lines[z]) is not None:
+                        continueSearch = z
+                        break
+                break
+            for j in range(continueSearch, len(lines)):
+                if _emptyLinePattern.match(lines[j]) is not None:
+                    end = j
+                    continue
+                if (lines[j].startswith(_notArticleLineStart) or
+                        lines[j].startswith(_articleLineStart) or
+                        j == len(lines)-1):
+                    nextSearchStart = end
+                    if j == len(lines)-1:
+                        egg = True
+                    else:
+                        break
+            result[title] = {
+                'htmParNum': htmParNum,
+                'type': materialType,
+                'lines': lines[start:end]
+            }
+        return result
+
+    @classmethod
+    def get_cons_note_from_str(cls, string):
+        consNote = lxml.html.document_fromstring(string)
+        xpathRes = consNote.xpath('//div')
+        xl = []
+        for x in xpathRes:
+            xl.append(x.text_content().strip())
+        return '\n'.join(xl)
+
+    @classmethod
+    def clear_splitted_htm_and_get_plus_add_cons_notes(cls, splittedHtm):
+        for key in splittedHtm:
+            lines = splittedHtm[key]['lines']
+            notes = []
+            rdNote = ''
+            indexesForDeleting = []
+            for i in range(len(lines)):
+                if (lines[i].startswith(_articleTextStart) and
+                        _redactionNoteCheckPattern.match(lines[i]) is None):
+                    break
+                elif _emptyLinePattern.match(lines[i]) is not None:
+                    indexesForDeleting.append(i)
+                    if (lines[i+1].startswith(_strsForDel1Start) and
+                            _emptyLinePattern.match(lines[i+4]) is not None):
+                        continue
+                    else:
+                        break
+                elif (lines[i].startswith(_strsForDel1Start) or
+                        lines[i].startswith(_strsForDel2Start)):
+                    indexesForDeleting.append(i)
+                elif _redactionNoteCheckPattern.match(lines[i]) is not None:
+                    rdNote = lxml.html.document_fromstring(
+                                                    lines[i]).text_content()
+                    indexesForDeleting.append(i)
+                elif lines[i].startswith(_consNoteStart):
+                    indexesForDeleting.append(i)
+                    consNote = cls.get_cons_note_from_str(lines[i])
+                    notes.append(consNote)
+            if notes:
+                splittedHtm[key]['cons_note'] = '\n\n'.join(notes)
+            if rdNote:
+                splittedHtm[key]['redaction_note'] = rdNote
+            correction = 0
+            for index in indexesForDeleting:
+                del lines[index-correction]
+                correction += 1
+
+    @classmethod
+    def build_article_subheaders_treeItem(cls, articleLines, CUR_RD_KEY):
+        print('')
+        cleanedArticleLines = {}
+        for key in articleLines:
+            cleanedArticleLines[key] = []
+            for line in articleLines[key]:
+                if (line.startswith(_consNoteStart) or
+                        line.startswith(_articleTextStart)):
+                    cleanedArticleLines[key].append(line)
+                # There are white spaces around images with formulas.
+                # elif _emptyLinePattern.match(line) is not None:
+                #     print(f"Warning: article {key} has empty line in lines "
+                #           f"(maybe mr. president's sign)")
+                #     break
+
+        articleLinesWithNotes = {}
+        for key in cleanedArticleLines:
+            articleLinesWithNotes[key] = []
+            lines = cleanedArticleLines[key]
+            for i in range(len(lines)):
+                tempDict = {}
+                if (lines[i].startswith(_articleTextStart) and
+                        _redactionNoteCheckPattern.match(lines[i]) is None):
+                    text = lxml.html.document_fromstring(
+                                                    lines[i]).text_content()
+                    tempDict['text'] = text
+                    try:
+                        if lines[i-1].startswith(_consNoteStart):
+                            tempDict['cons_note'] = \
+                                cls.get_cons_note_from_str(lines[i-1])
+                    except IndexError:
+                        pass
+                    try:
+                        match = _redactionNoteCheckPattern.match(lines[i+1])
+                        if match is not None:
+                            rdNote = lxml.html.document_fromstring(
+                                                    lines[i+1]).text_content()
+                            tempDict['redaction_note'] = rdNote
+                    except IndexError:
+                        pass
+                    articleLinesWithNotes[key].append(tempDict)
+
+        # work in progress
+        treeItem = {}
+        aC = 0
+        for key in articleLinesWithNotes:
+            aC += 1
+            print(f"Article processing (divide into parts) "
+                  f"{aC}/{len(articleLinesWithNotes)}...", end='\r')
+            if not len(articleLinesWithNotes[key]) > 1:
+                continue
+            indexes = []
+            lines = articleLinesWithNotes[key]
+            for i in range(len(lines)):
+                if (cls.partNumberPattern.match(
+                        lines[i]['text']) is not None and
+                    cls.partNumberRangePattern.match(
+                        lines[i]['text']) is None):
+                    indexes.append(i)
+                if cls.noteCheckPattern.match(lines[i]['text']) is not None:
+                    doc_id = f"{key}/{cls.NOTE_SIGN}"
+                    absolute_path = (f"{cls.codeHeaders[key]['absolute_path']}"
+                                     f"/{cls.NOTE_SIGN}")
+                    title = cls.NOTE_NAME_PREFIX
+                    if 'redaction_note' in lines[i]:
+                        rdNote = lines[i]['redaction_note']
+                    else:
+                        rdNote = None
+                    if 'cons_note' in lines[i]:
+                        consNote = lines[i]['cons_note']
+                    else:
+                        consNote = None
+                    textLines = []
+                    for line in lines[i:]:
+                        textLines.append(line['text'])
+                    text = '\n'.join(textLines)
+                    cls.codeHeaders[doc_id] = cls.create_subheader(
+                        key, cls.NOTE_SIGN, absolute_path, title, rdNote,
+                        consNote, text)
+                    if i != len(lines)-1:
+                        lines[i]['text'] = cls.noteWordDelPattern.sub(
+                                                        '', lines[i]['text'])
+                        if lines[i]['text']:
+                            treeItem[doc_id] = lines[i:]
+                        else:
+                            treeItem[doc_id] = lines[i+1:]
+                    del lines[i:]
+                    break
+            if indexes:
+                for j in range(len(indexes)):
+                    i = indexes[j]
+                    num = cls.partNumberPattern.match(lines[i]['text'])[0]
+                    doc_id = f"{key}/{cls.PART_SIGN}-{num}"
+                    absolute_path = (f"{cls.codeHeaders[key]['absolute_path']}"
+                                     f"/{cls.PART_SIGN}-{num}")
+                    title = cls.PART_NAME_PREFIX + str(num)
+                    if 'redaction_note' in lines[i]:
+                        rdNote = lines[i]['redaction_note']
+                    else:
+                        rdNote = None
+                    if 'cons_note' in lines[i]:
+                        consNote = lines[i]['cons_note']
+                    else:
+                        consNote = None
+                    try:
+                        i2 = indexes[j+1]
+                    except IndexError:
+                        i2 = len(lines)
+                    textLines = []
+                    for line in lines[i:i2]:
+                        textLines.append(line['text'])
+                    text = '\n'.join(textLines)
+                    cls.codeHeaders[doc_id] = cls.create_subheader(
+                        key, cls.PART_SIGN, absolute_path, title, rdNote,
+                        consNote, text)
+                    if i2-i != 1:
+                        pass  # work in progress (abzats, punkts, podpunkts)
+                        # lines[i]['text'] = cls.partNumberDelPattern.sub(
+                        #   '', lines[i]['text'])
+                        # treeItem[doc_id] = lines[i:i2]
+            else:
+                pass
+                # work in progress (abzats, punkts, podpunkts)
+        # return treeItem
+        return None
 
     @classmethod
     def get_code_content(cls):
-        codeHeaders = {}
+        cls.codeHeaders = {}
         for i in range(len(cls.CODE_URLS)):
+            # i = 1 #debug
             if len(cls.CODE_URLS) > 1:
                 # debug print
-                print(f"\n{cls.CODE_PREFIX} {cls.CODE_PART_SIGN} {i+1}/{len(cls.CODE_URLS)}:")
-                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
-                cls.CODE_PART_KEY = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}-{str(i+1)}"
+                print(f"\n\n\n---{cls.CODE_PREFIX} {cls.CODE_PART_SIGN} "
+                      f"{i+1}/{len(cls.CODE_URLS)}:", end='')
+                doc_type = f"{cls.CODE_PREFIX}/ЧАСТЬ"
+                cls.CODE_PART_KEY = \
+                    f"{cls.CODE_PREFIX}_{cls.CODE_PART_SIGN}-{str(i+1)}"
             else:
                 # debug print
-                print(f"\n{cls.CODE_PREFIX}:")
-                doc_type = cls.CODE_PREFIX
+                print(f"\n\n\n---{cls.CODE_PREFIX}:", end='')
+                doc_type = f"{cls.CODE_PREFIX}/ВЕСЬ"
                 cls.CODE_PART_KEY = cls.CODE_PREFIX
-            
+            cls.CUR_CODE_PART_NAME = cls.CODE_PART_NAMES[i]
             supertype = cls.CODE_PREFIX
-            code_URL = cls.CODE_URLS[i]
-            codeMainPage, response = _get_page(code_URL, cls.REQHEADERS)
-            title = codeMainPage.xpath('//h1')[0].text
+            text_source_url = codeURL = cls.CODE_URLS[i]
+            # debug start
+            # testurl = 'http://www.consultant.ru/document/cons_doc_law_10699/'
+            # testurl = 'http://www.consultant.ru/document/cons_doc_LAW_5142/'
+            # codeURL = testurl
+            # debug end
+            pageWithTitleAndDocNum, response = _get_page(codeURL,
+                                                         _REQHEADERS)
+            titleElements = pageWithTitleAndDocNum.xpath(
+                '//div[@class="h2"]/div[@class="HC"]/span')
+            titleStrings = []
+            for el in titleElements:
+                if el.text is not None:
+                    titleStrings.append(el.text)
+            title = '. '.join(titleStrings)
+            strWithDate = pageWithTitleAndDocNum.xpath(
+                '//meta[@name="description"]')[0].attrib["content"]
+            strDate = _strDatePattern.match(strWithDate)[0]
+            dayYear = _justNumberPattern.findall(strDate)
+            monthWord = _justWordPattern.search(strDate)[0]
+            release_date = f"{dayYear[0]}.{_monthDict[monthWord]}.{dayYear[1]}"
 
-            # getting page with title
-            spam1 = {'doc_type': cls.CODE_PREFIX}
-            spam2 = {
-                'supertype': '',
-                'release_date': '',
-                }
-            spam3 = _get_subheaders_from_page(
-                codeMainPage, spam1, cls.CODE_PREFIX,
-                cls.SECTION_SIGN, cls.HOST, cls.sectionNumberPattern, spam2, cls.CODE_PREFIX)
-
-            # getting true code part title:
-            pageWithTitle, spam = _get_page(
-                list(spam3.values())[0]['text_source_url'], cls.REQHEADERS)
-            title = pageWithTitle.xpath('//b[@id="documentTitleLink"]')[0].text
-
-            releaseDateMatch = cls.editionPattern.search(title)
-            if releaseDateMatch is None:
-                releaseDateMatch = cls.relPattern.search(title)
-                if releaseDateMatch is None:
-                    raise Exception('Cannot parse release date')
-            release_date = cls.datePattern.search(releaseDateMatch[0])[0]
-
-            text_source_url = code_URL
-
-            codeHeaders[cls.CODE_PART_KEY] = {
+            redactions, response = cls.get_document_redactions(codeURL,
+                                                               _REQHEADERS)
+            cls.codeHeaders[cls.CODE_PART_KEY] = {
                 'supertype': supertype,
                 'doc_type': doc_type,
                 'absolute_path': cls.CODE_PART_KEY,
                 'title': title,
                 'release_date': release_date,
-                'text_source_url': text_source_url
+                'text_source_url': text_source_url,
+                'cons_selected_info': {'redactions': redactions}
                 }
+            rj = 0  # debug
+            for red in redactions:
+                # debug print
+                rj += 1
+                print(f"\n\n--{cls.REDACTIONS_SIGN} {red['edDate']} "
+                      f"{rj}/{len(redactions)}:")
+                doc_type = f"{doc_type}/{cls.REDACTIONS_SIGN}"
+                release_date = red['edDate']
+                effective_date = _datePattern.search(red['reddate'])[0]
+                rdDocNumber = red['nd']
+                absolute_path = doc_id = \
+                    (f"{cls.CODE_PART_KEY}/{cls.REDACTIONS_SIGN}-"
+                     f"N{red['number']}-{effective_date}")
+                url = (f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                       f"&base=LAW&n={rdDocNumber}&content=text")
+                prevUrl = url
+                docContent, response = _get_page(
+                    url, _REQHEADERS, response, prevUrl, raw=True)
+                docContent = _decode_json_from_str(docContent)
 
-            baseHeader = {
-                'supertype': supertype,
-                'release_date': release_date,
-                }
+                url = (
+                    f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                    f"&n={rdDocNumber}&base=LAW&content=contents&op=attached")
+                attachedTitles, response = _get_page(
+                    url, _REQHEADERS, response, prevUrl, raw=True)
+                attachedTitles = _decode_json_from_str(
+                    attachedTitles)['contents']['attachedTitles']
 
-            # start of sections processing
-            headerWithcodeDocType = {'doc_type': cls.CODE_PREFIX}
-            sectionHeaders = _get_subheaders_from_page(
-                codeMainPage, headerWithcodeDocType, cls.CODE_PREFIX,
-                cls.SECTION_SIGN, cls.HOST, cls.sectionNumberPattern, baseHeader,
-                codeHeaders[cls.CODE_PART_KEY]['absolute_path'])
-            codeHeaders.update(sectionHeaders)
-            # end of sections processing
+                url = (f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                       f"&n={rdDocNumber}&base=LAW&content=contents")
+                treeItem, response = _get_page(
+                    url, _REQHEADERS, response, prevUrl, raw=True)
+                treeItem = _decode_json_from_str(
+                    treeItem)['contents']['treeItem']
 
-            # start of chapters and subsections processing
-            chapterHeaders = {}
-            shdKeys = list(sectionHeaders.keys())
-            while shdKeys:
-                key = shdKeys[0]
-                codeSectionPage, response = _get_page(
-                    sectionHeaders[key]['text_source_url'], cls.REQHEADERS,
-                    response, codeHeaders[cls.CODE_PART_KEY]['text_source_url']
-                    )
-                subsectionsTemp = _get_subheaders_from_page(
-                    codeSectionPage, sectionHeaders[key], key,
-                    cls.SUBSECTION_SIGN, cls.HOST, cls.subsectionNumberPattern, baseHeader,
-                    sectionHeaders[key]['absolute_path'], ignoreNoMatches=True
-                    )
-                if subsectionsTemp:
-                    codeHeaders.update(subsectionsTemp)
-                    sectionHeaders.update(subsectionsTemp)
-                    del sectionHeaders[key]
-                    shdKeys.extend(subsectionsTemp.keys())
-                else:
-                    temp = _get_subheaders_from_page(
-                            codeSectionPage, headerWithcodeDocType, cls.CODE_PREFIX,
-                            cls.CHAPTER_SIGN, cls.HOST, cls.chapterNumberPattern, baseHeader,
-                            sectionHeaders[key]['absolute_path'], 
-                            )
-                    chapterHeaders.update(temp)
-                del shdKeys[0]
-            codeHeaders.update(chapterHeaders)
-            # end of chapters and subsections processing
+                text_source_url = \
+                    (f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                     f"&base=LAW&n={rdDocNumber}")
 
-            # start of first stage of articles processing
-            articleHeaders = {}
-            chphKeys = list(chapterHeaders.keys())
-            #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_5142/783f9943d8039ff2e742ea93a317d52393568c0b/'
-            #chapterHeaders[chphKeys[0]]['text_source_url'] = testURL
-            while chphKeys:
-                key = chphKeys[0]
-                codeChapterPage, response = _get_page(
-                    chapterHeaders[key]['text_source_url'], cls.REQHEADERS,
-                    response, codeHeaders[cls.CODE_PART_KEY]['text_source_url']
-                    )
-                paragraphsTemp = _get_subheaders_from_page(
-                    codeChapterPage, chapterHeaders[key], key,
-                    cls.PARAGRAPH_SIGN, cls.HOST, cls.paragraphNumberPattern, baseHeader,
-                    chapterHeaders[key]['absolute_path'], ignoreNoMatches=True
-                    )
-                if paragraphsTemp:
-                    codeHeaders.update(paragraphsTemp)
-                    chapterHeaders.update(paragraphsTemp)
-                    del chapterHeaders[key]
-                    chphKeys.extend(paragraphsTemp.keys())
-                else:
-                    subparagraphsTemp = _get_subheaders_from_page(
-                        codeChapterPage, chapterHeaders[key], key,
-                        cls.SUBPARAGRAPH_SIGN, cls.HOST, cls.subparagraphNumberPattern, baseHeader,
-                        chapterHeaders[key]['absolute_path'], ignoreNoMatches=True
-                        )
-                    if subparagraphsTemp:
-                        codeHeaders.update(subparagraphsTemp)
-                        chapterHeaders.update(subparagraphsTemp)
-                        del chapterHeaders[key]
-                        chphKeys.extend(subparagraphsTemp.keys())
-                    else:
-                        ahs = _get_subheaders_from_page(
-                                codeChapterPage, headerWithcodeDocType, cls.CODE_PREFIX,
-                                cls.ARTICLE_SIGN, cls.HOST, cls.articlesNumbersPattern, baseHeader,
-                                chapterHeaders[key]['absolute_path'], onlyFirst=False
-                                )
-                        if ahs:
-                            articleHeaders.update(ahs)
-                        else:
-                            print(f"Warning: Chapter {key} is no more valid.")
-                            ahs = _get_subheaders_from_header_title(
-                                chapterHeaders[key]['title'],
-                                chapterHeaders[key]['text_source_url'],
-                                headerWithcodeDocType, cls.CODE_PREFIX,
-                                cls.ARTICLE_SIGN, cls.articlesStartPattern,
-                                cls.articlesNumbersPattern, baseHeader,
-                                chapterHeaders[key]['absolute_path']
-                            )
-                            if ahs:
-                                articleHeaders.update(ahs)
-                            else:
-                                raise Exception(f"Cannot get articles from chapter {key}")
-                del chphKeys[0]
-            codeHeaders.update(articleHeaders)
-            # end of first stage of articles processing
-
-            # start of last stage of articles processing
-            # start of parts processing
-            numArt = 1  # debug
-            for key in articleHeaders:
-                print(f'Processing article {numArt}/{len(articleHeaders)}...',
-                    end='\r')  # debug
-                numArt += 1  # debug
-                # testURL = 'testUrl'
-                #testURL = 'http://www.consultant.ru/document/cons_doc_LAW_34661/ebf5dddb0d5fcdf25d19cbc40c405fc254be2f76/'
-                #articleHeaders[key]['text_source_url'] = testURL
-                codeArticlePage, response = _get_page(
-                    articleHeaders[key]['text_source_url'], cls.REQHEADERS,
-                    response,
-                    codeHeaders[cls.CODE_PART_KEY]['text_source_url']
-                    )
-                try:
-                    textTitle = codeArticlePage.xpath(
-                        '//div[@class="text"]/h1/div[@style]/span')[0].\
-                            text_content()
-                except IndexError:
-                    textTitle = codeArticlePage.xpath('//h1')[0].text_content()
-                codeHeaders[key]['title'] = textTitle
-                stringList = []
-                spans = codeArticlePage.xpath(
-                    '//div[@class="text"]/div[@style]/span')
-                for string in spans:
-                    string_text = string.text_content()
-                    if string_text != '\xa0':
-                        stringList.append(string_text)
-                articleText = textTitle + '\n\n' + '\n'.join(stringList)
-                codeHeaders[key]['text'] = articleText
-                # end of article processing
-
-                # start of notes processing
-                noteStrings = []
-                for i in range(len(stringList)):
-                    if cls.notePattern.match(stringList[i]) is not None:
-                        noteStrings = stringList[i:]
-                        del stringList[i:]
+                page, response = _get_page(
+                    text_source_url, _REQHEADERS, response, prevUrl)
+                spam = page.xpath("//script")
+                title = None
+                for s in spam:
+                    try:
+                        spamDict = _decode_json_from_str(s.attrib["settings"])
+                    except ValueError:
+                        continue
+                    if 'title' in spamDict:
+                        title = spamDict['title']
                         break
-                # In the future, it will be necessary
-                # to expand the processing of notes.
-                if noteStrings:
-                    noteHeaders = _get_subheaders_from_strings_by_indexes(
-                        articleHeaders[key], key, noteStrings, [0], cls.NOTE_SIGN,
-                        cls.NOTE_NAME_PREFIX, None, baseHeader,
-                        articleHeaders[key]['absolute_path']
-                        )[0]
-                    codeHeaders.update(noteHeaders)
-                # end of notes processing
+                if title is None:
+                    raise Exception(f"Doc {doc_id}. Cannot parse title.")
 
-                codeHeaders.update(
-                    _get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
-                        articleHeaders[key], key, stringList, cls.PART_SIGN,
-                        cls.PART_NAME_PREFIX, cls.partNumberRangePattern,
-                        cls.partNumberRangeNumPattern, cls.partNumberRangeNumLastNum,
-                        baseHeader, articleHeaders[key]['absolute_path']
-                        )
-                    )
-
-                _get_subheaders_range_labeled_by_words_instead_numbers(
-                    codeHeaders, [cls.punktNumberPattern, cls.punktNumberRangePattern,
-                                cls.podpunktNumberPattern,
-                                cls.podpunktNumberRangePattern,
-                                cls.loneNoMoreValidAbzatsPattern],
-                    articleHeaders[key], key, stringList, cls.PART_SIGN,
-                    cls.PART_NAME_PREFIX,  cls.partNumberPattern, baseHeader, 
-                    articleHeaders[key]['absolute_path'], thisFirstCall=True
-                    )
-
-                partsIndexes = _get_subheaders_indexes(stringList,
-                                                    cls.partNumberPattern)
-                if not partsIndexes:
-                    if (len(stringList) > 1 and
-                            cls.lastEnumElCheckPattern.search(
-                                stringList[0]) is not None):
-                        abzatsHeaders = _get_subheaders_from_strings_by_indexes(
-                                articleHeaders[key], key, stringList, None,
-                                cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX, None, baseHeader,
-                                articleHeaders[key]['absolute_path']
-                                )[0]
-                        codeHeaders.update(abzatsHeaders)
-                        continue
+                htmFileName = doc_id.replace('/', '_')
+                url = \
+                    (f"http://{_HOST}/cons/cgi/online.cgi?req=export"
+                     f"&type=html&base=LAW&n={rdDocNumber}")
+                rar, response = _get_page(
+                    url, _REQHEADERS, response, prevUrl, raw=True)
+                with open(f'{htmFileName}.zip', 'wb') as rarFile:
+                    rarFile.write(rar)
+                with zipfile.ZipFile(f'{htmFileName}.zip') as file:
+                    files = file.namelist()
+                    if files[0].endswith('.htm'):
+                        filename = files[0]
                     else:
-                        continue
+                        filename = files[1]
+                    file.extract(filename, '')
+                os.remove(f'{htmFileName}.zip')
+                with open(filename, 'r', encoding='utf-8') as htmFile:
+                    savedHtmText = htmFile.read()
+                os.remove(filename)
+                text = {
+                    'filename': f'{htmFileName}.htm',
+                    'content': savedHtmText
+                }
+                consInTextLabel = treeItem[0]['label']
+                inHtmLabel = '0'  # stab
 
-                partHeaders, partsDictStringList = \
-                    _get_subheaders_from_strings_by_indexes(
-                        articleHeaders[key], key, stringList, partsIndexes,
-                        cls.PART_SIGN, cls.PART_NAME_PREFIX, cls.partNumberPattern, baseHeader,
-                        articleHeaders[key]['absolute_path']
-                        )
-                codeHeaders.update(partHeaders)
+                if red['type'] == 'n':
+                    compareRdDocNum = _comparRdNumPattern1.search(
+                        docContent['settings']['compareEditions']['href'])[0]
+                    redactionComparisonLink = (
+                        f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                        f"&base=LAW&div=LAW&n={rdDocNumber}"
+                        f"&diff={compareRdDocNum}")
+                else:
+                    compareRdDocNum = _compareRdNumPattern2.search(
+                        docContent['settings']['compareEditions']['href'])[0]
+                    redactionComparisonLink = (
+                            f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
+                            f"&base=LAW&div=LAW&n={compareRdDocNum}"
+                            f"&diff={rdDocNumber}")
 
-                # start of punkts processing
-                for key in partHeaders:
-                    codeHeaders.update(
-                        _get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
-                            partHeaders[key], key, partsDictStringList[key],
-                            cls.PUNKT_SIGN, cls.PUNKT_NAME_PREFIX, cls.punktNumberRangePattern,
-                            cls.punktNumberRangeNumPattern, cls.punktNumberRangeNumLastNum,
-                            baseHeader, partHeaders[key]['absolute_path']
-                            )
-                        )
+                cls.codeHeaders[doc_id] = {
+                    'supertype': supertype,
+                    'doc_type': doc_type,
+                    'absolute_path': absolute_path,
+                    'title': title,
+                    'release_date': release_date,
+                    'effective_date': effective_date,
+                    'text': text,
+                    'text_source_url': f"{text['filename']}#Par{inHtmLabel}",
+                    'cons_selected_info': {
+                        'rd_doc_number': rdDocNumber,
+                        'reference_info': docContent['esse']['content'],
+                        'rd_number': red['number'],
+                        'rd_type': red['type'],
+                        'rd_description': red['_text'],
+                        'rd_doc_link': text_source_url,
+                        'intext_label': consInTextLabel,
+                        'unicode_text_link': (
+                            f"http://{_HOST}/cons/cgi/online.cgi?req=export"
+                            f"&type=utxt&base=LAW&n={rdDocNumber}"),
+                        'prev_rd_doc_num': compareRdDocNum,
+                        'changes_review_link': (
+                            f"http://{_HOST}/cons/cgi/online.cgi?req=query"
+                            f"&REFDOC={rdDocNumber}&REFBASE=LAW&mode=chgreview"
+                            f"&content=instant"),
+                        'redaction_comparison_link': redactionComparisonLink,
+                        'addit_info_link': (
+                            f"http://{_HOST}/cons/cgi/online.cgi?req=query"
+                            f"&div=LAW&REFDOC={rdDocNumber}&REFBASE=LAW"
+                            f"&REFTYPE=CDLT_DOC_I_BACKREFS&mode=backrefs")
+                        }  # ,
+                    # 'cons_raw_info': {
+                    #     'docContent': docContent,
+                    #     'attachedTitles': attachedTitles,
+                    #     'treeItem': treeItem
+                    #     }
+                    }
+                rekeyedAttachedTitles = {}
+                del attachedTitles[0]
+                for at in attachedTitles:
+                    rekeyedAttachedTitles[at['tooltip'][0]] = at
 
-                    _get_subheaders_range_labeled_by_words_instead_numbers(
-                        codeHeaders, [cls.podpunktNumberPattern,
-                                    cls.podpunktNumberRangePattern,
-                                    cls.partNumberPattern,
-                                    cls.loneNoMoreValidAbzatsPattern],
-                        partHeaders[key], key, partsDictStringList[key],
-                        cls.PUNKT_SIGN, cls.PUNKT_NAME_PREFIX, cls.punktNumberPattern,
-                        baseHeader, partHeaders[key]['absolute_path']
-                        )
+                splittedHtm = cls.split_saved_htm(savedHtmText)
+                cls.clear_splitted_htm_and_get_plus_add_cons_notes(splittedHtm)
 
-                    punktIndexes = _get_subheaders_indexes(partsDictStringList[key],
-                                                        cls.punktNumberPattern)
+                cls.recursCounter = 0
+                CUR_RD_KEY = doc_id
+                articleLines = \
+                    cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
+                        treeItem, doc_id, CUR_RD_KEY, rekeyedAttachedTitles,
+                        splittedHtm)
 
-                    # just need to check on big dataset
-                    if (len(partsDictStringList[key]) > 2 and
-                            cls.endsWithDashCheckPattern.search(
-                                partsDictStringList[key][0]) is not None):
-                        print(f"Warning: Part {key} has multiple abzats after '-',"
-                            " please check.")
+                articleSubheadersTreeItem = \
+                    cls.build_article_subheaders_treeItem(articleLines,
+                                                          CUR_RD_KEY)
+                # debug saving
+                # pathToFile = 'codeContTest.json'
+                # with open(pathToFile, 'wt', encoding='utf-8') as jsonFile:
+                #     json.dump(cls.codeHeaders, jsonFile)
+                # print('ok')
+        return cls.codeHeaders
 
-                    if not punktIndexes:
-                        if (len(partsDictStringList[key]) > 1 and
-                                cls.endsWithDashCheckPattern.search(
-                                    partsDictStringList[key][0]) is None):
-                            abzatsHeaders = _get_subheaders_from_strings_by_indexes(
-                                partHeaders[key], key, partsDictStringList[key],
-                                None, cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX, None,
-                                baseHeader, partHeaders[key]['absolute_path']
-                                )[0]
-                            codeHeaders.update(abzatsHeaders)
-                        else:
-                            continue
-                    else:
-                        codeHeaders.update(
-                            process_unique_subhs_abzats_together(
-                                partHeaders[key], key, partsDictStringList[key],
-                                punktIndexes, cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX,
-                                baseHeader, partHeaders[key]['absolute_path']
-                                )
-                            )
 
-                        punktHeaders, punktsDictStringList = \
-                            _get_subheaders_from_strings_by_indexes(
-                                partHeaders[key], key, partsDictStringList[key],
-                                punktIndexes, cls.PUNKT_SIGN, cls.PUNKT_NAME_PREFIX,
-                                cls.punktNumberPattern, baseHeader,
-                                partHeaders[key]['absolute_path']
-                                )
-                        codeHeaders.update(punktHeaders)
-
-                        # avos'
-                        # start of podpunkts processing
-                        for key in punktHeaders:
-                            codeHeaders.update(
-                                _get_subhdrs_rngs_frm_strs_and_clear_strs_frm_them(
-                                    punktHeaders[key], key,
-                                    punktsDictStringList[key],
-                                    cls.PODPUNKT_SIGN, cls.PODPUNKT_NAME_PREFIX,
-                                    cls.podpunktNumberRangePattern,
-                                    cls.podpunktNumberRangeNumPattern,
-                                    cls.podpunktNumberRangeNumLastNum, baseHeader,
-                                    punktHeaders[key]['absolute_path']
-                                    )
-                                )
-                            podpunktIndexes = _get_subheaders_indexes(
-                                punktsDictStringList[key], cls.podpunktNumberPattern)
-
-                            # just need to check on big dataset
-                            if (len(punktsDictStringList[key]) > 2 and
-                                    cls.endsWithDashCheckPattern.search(
-                                        punktsDictStringList[key][0]) is not None):
-                                print(f"Warning: Punkt {key} has multiple abzats "
-                                    "after '-', please check.")
-
-                            if not podpunktIndexes:
-                                if len(punktsDictStringList[key]) > 1 and \
-                                        cls.endsWithDashCheckPattern.search(
-                                            punktsDictStringList[key][0]) is None:
-                                    abzatsHeaders = \
-                                        _get_subheaders_from_strings_by_indexes(
-                                            punktHeaders[key], key,
-                                            punktsDictStringList[key], None,
-                                            cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX,
-                                            None, baseHeader,
-                                            punktHeaders[key]['absolute_path']
-                                            )[0]
-                                    codeHeaders.update(abzatsHeaders)
-                                else:
-                                    continue
-                            else:
-                                codeHeaders.update(
-                                    process_unique_subhs_abzats_together(
-                                        punktHeaders[key], key,
-                                        punktsDictStringList[key], podpunktIndexes,
-                                        cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX, baseHeader,
-                                        punktHeaders[key]['absolute_path']
-                                        )
-                                    )
-
-                                podpunktHeaders, podpunktsDictStringList = \
-                                    _get_subheaders_from_strings_by_indexes(
-                                        punktHeaders[key], key,
-                                        punktsDictStringList[key], podpunktIndexes,
-                                        cls.PODPUNKT_SIGN, cls.PODPUNKT_NAME_PREFIX,
-                                        cls.podpunktNumberPattern, baseHeader,
-                                        punktHeaders[key]['absolute_path']
-                                        )
-                                codeHeaders.update(podpunktHeaders)
-                                for key in podpunktHeaders:
-                                    if len(podpunktsDictStringList[key]) > 1 and \
-                                        cls.endsWithDashCheckPattern.search(
-                                            podpunktsDictStringList[key][0]) \
-                                            is None:
-                                        abzatsHeaders = \
-                                            _get_subheaders_from_strings_by_indexes(
-                                                podpunktHeaders[key], key,
-                                                podpunktsDictStringList[key], None,
-                                                cls.ABZATS_SIGN, cls.ABZATS_NAME_PREFIX,
-                                                None, baseHeader,
-                                                podpunktHeaders[key]['absolute_path']
-                                                )[0]
-                                        codeHeaders.update(abzatsHeaders)
-                                    else:
-                                        continue
-                        # end of podpunkts processing
-                # end of punkts processing
-            # end of last stage of articles processing
-            # end of parts processing
-        # end of code processing
-        return codeHeaders
+class _Ukrf(_BaseCode):
+    CODE_URLS = (
+        'http://www.consultant.ru/document/cons_doc_LAW_10699/',)
+    CODE_PREFIX = 'УКРФ'
+    CODE_PART_NAMES = ('УК РФ',)
 
 
 class _Koaprf(_BaseCode):
     CODE_URLS = (
         'http://www.consultant.ru/document/cons_doc_LAW_34661',)
     CODE_PREFIX = 'КОАПРФ'
+    CODE_PART_NAMES = ('КоАП РФ',)
 
 
 class _Nkrf (_BaseCode):
@@ -969,14 +960,12 @@ class _Nkrf (_BaseCode):
         'http://www.consultant.ru/document/cons_doc_LAW_19671',
         'http://www.consultant.ru/document/cons_doc_LAW_28165')
     CODE_PREFIX = 'НКРФ'
-    CODE_PART_SIGN = 'Ч'
+    CODE_PART_NAMES = ('НК РФ Общая часть',
+                       'НК РФ Специальная (особенная) часть')
 
-    PART_SIGN = _PUNKT_SIGN
-    PART_NAME_PREFIX = _PUNKT_NAME_PREFIX
-    PUNKT_SIGN = _PODPUNKT_SIGN
-    PUNKT_NAME_PREFIX = _PODPUNKT_NAME_PREFIX
-    PODPUNKT_SIGN = _ABZATS_SIGN
-    PODPUNKT_NAME_PREFIX = _ABZATS_NAME_PREFIX
+    PART_NAME_PREFIX = 'Часть (пункт) '
+    PUNKT_NAME_PREFIX = 'Пункт (подпункт) '
+    PODPUNKT_NAME_PREFIX = 'Подпункт (подподпункт) '
 
 
 class _Gkrf(_BaseCode):
@@ -987,23 +976,23 @@ class _Gkrf(_BaseCode):
         'http://www.consultant.ru/document/cons_doc_LAW_64629/'
         )
     CODE_PREFIX = 'ГКРФ'
-    CODE_PART_SIGN = 'Ч'
+    CODE_PART_NAMES = ('ГК РФ Часть 1', 'ГК РФ Часть 2', 'ГК РФ Часть 3',
+                       'ГК РФ Часть 4')
 
-    PART_SIGN = _PUNKT_SIGN
-    PART_NAME_PREFIX = _PUNKT_NAME_PREFIX
-    PUNKT_SIGN = _PODPUNKT_SIGN
-    PUNKT_NAME_PREFIX = _PODPUNKT_NAME_PREFIX
-    PODPUNKT_SIGN = _ABZATS_SIGN
-    PODPUNKT_NAME_PREFIX = _ABZATS_NAME_PREFIX
+    PART_NAME_PREFIX = 'Часть (пункт) '
+    PUNKT_NAME_PREFIX = 'Пункт (подпункт) '
+    PODPUNKT_NAME_PREFIX = 'Подпункт (подподпункт) '
 
 
 _codesParsers = {
     'КОАПРФ': _Koaprf,
     'НКРФ': _Nkrf,
-    'ГКРФ': _Gkrf
+    'ГКРФ': _Gkrf,
+    'УКРФ': _Ukrf
 }
 
 _ALL_CODES = frozenset(_codesParsers.keys())
+
 
 def get_content(codes: set=_ALL_CODES):
     if hasattr(codes, '__iter__'):
@@ -1027,15 +1016,17 @@ def get_content(codes: set=_ALL_CODES):
         codesContent.update(codeContent)
     return codesContent
 
+
 if __name__ == '__main__':
     import os
     import json
     import time
     start_time = time.time()
-    #codes = {'КОАПРФ', 'НКРФ', 'ГКРФ'}
-    codes = {'КОАПРФ'}
+    # codes = {'КОАПРФ', 'НКРФ', 'ГКРФ', 'УКРФ'}
+    # codes = {'КОАПРФ'}
+    # codes = {'УКРФ'}
     # codes = 'КОАПРФ'
-    # codes = {'НКРФ'}
+    codes = {'НКРФ'}
     # codes = {'ГКРФ'}
     codeHeaders = get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n"
