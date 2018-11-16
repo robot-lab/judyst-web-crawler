@@ -47,14 +47,15 @@ _PODPUNKT_NAME_PREFIX = 'Подпункт '
 _ABZATS_NAME_PREFIX = 'Абзац '
 
 _sectionNumberPattern = re.compile(
-    r'(?<=Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
+    r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
 _subsectionNumberPattern = re.compile(
-    r'(?<=Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
 _paragraphNumberPattern = re.compile(r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
 _subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
-_chapterNumberPattern = re.compile(r'(?<=Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+_chapterNumberPattern = re.compile(
+    r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
 _articleNumberPattern = re.compile(
-    r'(?<=Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
 _articlesNumbersPattern = re.compile(
     r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
     r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
@@ -114,7 +115,7 @@ _compareRdNumPattern2 = re.compile(r'(?<=&n=)\d+')
 _parHtmlPattern = re.compile(r'(?:\<div[\w\W]*?(?=\<a id="Par)|\<div.*div\>)')
 _parLabelInSavedHtmlPattern = re.compile(r'(?<=#Par)\d+(?=")')
 _titleInSaveHtmContentsPattern = re.compile(
-    r'(?:(?<=>◦).*?(?=<)|(?<=>)[А-Яа-яEё§\d].*?(?=<))')
+    r'(?:(?<=>◦).*?(?=<)|(?<=>)(?:[А-Яа-яEё§\d]|&sect;|&quot;).*?(?=<))')
 _savedHtmContentsPattern = re.compile(r'\<div[\w\W]*?\<table')
 _parInStrInSavedHtmPattern = re.compile(r'(?<=id="Par)\d+(?=")')
 _emptyLinePattern = re.compile(
@@ -371,7 +372,10 @@ class _BaseCode:
                 doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
                 title = item['_text']
                 dstLabel = item['label']
-                attached = rekeyedAttachedTitles[title]['tooltip']
+                try:
+                    attached = rekeyedAttachedTitles[title]['tooltip']
+                except KeyError:
+                    continue
                 htmParNum = splittedHtm[title]['htmParNum']
                 if 'cons_note' in splittedHtm[title]:
                     consNote = splittedHtm[title]['cons_note']
@@ -732,7 +736,9 @@ class _BaseCode:
         return None
 
     @classmethod
-    def get_code_content(cls):
+    def get_code_content(
+            cls, pathToResultJsonLinesFile,
+            pathToFileForKeysThathWereDownloadedYet):
         cls.codeHeaders = {}
         for i in range(len(cls.CODE_URLS)):
             # i = 1 #debug
@@ -740,13 +746,13 @@ class _BaseCode:
                 # debug print
                 print(f"\n\n\n---{cls.CODE_PREFIX} {cls.CODE_PART_SIGN} "
                       f"{i+1}/{len(cls.CODE_URLS)}:", end='')
-                doc_type = f"{cls.CODE_PREFIX}/ЧАСТЬ"
+                code_doc_type = f"{cls.CODE_PREFIX}/ЧАСТЬ"
                 cls.CODE_PART_KEY = \
                     f"{cls.CODE_PREFIX}_{cls.CODE_PART_SIGN}-{str(i+1)}"
             else:
                 # debug print
                 print(f"\n\n\n---{cls.CODE_PREFIX}:", end='')
-                doc_type = f"{cls.CODE_PREFIX}/ВЕСЬ"
+                code_doc_type = f"{cls.CODE_PREFIX}/ВЕСЬ"
                 cls.CODE_PART_KEY = cls.CODE_PREFIX
             cls.CUR_CODE_PART_NAME = cls.CODE_PART_NAMES[i]
             supertype = cls.CODE_PREFIX
@@ -776,7 +782,7 @@ class _BaseCode:
                                                                _REQHEADERS)
             cls.codeHeaders[cls.CODE_PART_KEY] = {
                 'supertype': supertype,
-                'doc_type': doc_type,
+                'doc_type': code_doc_type,
                 'absolute_path': cls.CODE_PART_KEY,
                 'title': title,
                 'release_date': release_date,
@@ -784,18 +790,30 @@ class _BaseCode:
                 'cons_selected_info': {'redactions': redactions}
                 }
             rj = 0  # debug
+            try:
+                with open(pathToFileForKeysThathWereDownloadedYet, 'r',
+                          encoding='utf-8') as jsonlinesFile:
+                    yetProcessed = jsonlinesFile.read().splitlines()
+            except FileNotFoundError:
+                yetProcessed = []
             for red in redactions:
                 # debug print
                 rj += 1
                 print(f"\n\n--{cls.REDACTIONS_SIGN} {red['edDate']} "
                       f"{rj}/{len(redactions)}:")
-                doc_type = f"{doc_type}/{cls.REDACTIONS_SIGN}"
+                doc_type = f"{code_doc_type}/{cls.REDACTIONS_SIGN}"
                 release_date = red['edDate']
-                effective_date = _datePattern.search(red['reddate'])[0]
+                match = _datePattern.search(red['reddate'])
+                if match is not None:
+                    effective_date = match[0]
+                else:
+                    effective_date = 'не действовала'
                 rdDocNumber = red['nd']
                 absolute_path = doc_id = \
                     (f"{cls.CODE_PART_KEY}/{cls.REDACTIONS_SIGN}-"
                      f"N{red['number']}-{effective_date}")
+                if doc_id in yetProcessed:
+                    continue
                 url = (f"http://{_HOST}/cons/cgi/online.cgi?req=doc"
                        f"&base=LAW&n={rdDocNumber}&content=text")
                 prevUrl = url
@@ -933,11 +951,20 @@ class _BaseCode:
                 articleSubheadersTreeItem = \
                     cls.build_article_subheaders_treeItem(articleLines,
                                                           CUR_RD_KEY)
-                # debug saving
-                # pathToFile = 'codeContTest.json'
-                # with open(pathToFile, 'wt', encoding='utf-8') as jsonFile:
-                #     json.dump(cls.codeHeaders, jsonFile)
+                with open(pathToResultJsonLinesFile, 'at',
+                          encoding='utf-8') as jsonlinesFile:
+                    for key in cls.codeHeaders:
+                        jsonlinesFile.write(json.dumps(
+                            {key: cls.codeHeaders[key]}) + '\n')
+                cls.codeHeaders = {}
+                with open(pathToFileForKeysThathWereDownloadedYet, 'at',
+                          encoding='utf-8') as file:
+                    file.write(doc_id + '\n')
                 # print('ok')
+            # pathToFile = f'{cls.CODE_PART_KEY}.json'
+            # with open(pathToFile, 'wt', encoding='utf-8') as jsonFile:
+            #     json.dump(cls.codeHeaders, jsonFile)
+            #     cls.codeHeaders = {}
         return cls.codeHeaders
 
 
@@ -994,7 +1021,10 @@ _codesParsers = {
 _ALL_CODES = frozenset(_codesParsers.keys())
 
 
-def get_content(codes: set=_ALL_CODES):
+def get_content(
+        codes: set=_ALL_CODES,
+        pathToResultJsonLinesFile='codeHeaders.jsonlines',
+        pathToFileForKeysThathWereDownloadedYet='processedYet.jsonlines'):
     if hasattr(codes, '__iter__'):
         if isinstance(codes, str) and codes in _ALL_CODES:
             codes = {codes}
@@ -1012,7 +1042,8 @@ def get_content(codes: set=_ALL_CODES):
                         "as elements.")
     codesContent = {}
     for code in codes:
-        codeContent = _codesParsers[code].get_code_content()
+        codeContent = _codesParsers[code].get_code_content(
+            pathToResultJsonLinesFile, pathToFileForKeysThathWereDownloadedYet)
         codesContent.update(codeContent)
     return codesContent
 
@@ -1026,22 +1057,22 @@ if __name__ == '__main__':
     # codes = {'КОАПРФ'}
     # codes = {'УКРФ'}
     # codes = 'КОАПРФ'
-    codes = {'НКРФ'}
+    # codes = {'НКРФ'}
     # codes = {'ГКРФ'}
+    codes = {'ГКРФ', 'НКРФ'}
     codeHeaders = get_content(codes)
-    print(f"\nCodes processing spent {time.time()-start_time} seconds.\n"
-          f"Total IDs: {len(codeHeaders)}.")
-    pathToFile = f'{list(codes)[0]}_codeHeaders.json'
-    dirname = os.path.dirname(pathToFile)
-    if dirname:
-        os.makedirs(dirname, exist_ok=True)
-    with open(pathToFile, 'w', encoding='utf-8') as jsonFile:
-        json.dump(codeHeaders, jsonFile)
+    print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
+    # pathToFile = f'{list(codes)[0]}_codeHeaders.json'
+    # dirname = os.path.dirname(pathToFile)
+    # if dirname:
+    #     os.makedirs(dirname, exist_ok=True)
+    # with open(pathToFile, 'w', encoding='utf-8') as jsonFile:
+    #     json.dump(codeHeaders, jsonFile)
     input("press any key...")
-    # pathToFile = 'online.json'
+    # pathToFile = 'code1.json'
     # with open(pathToFile, 'rt', encoding='utf-8') as jsonFile:
     #     jsonOLD = json.load(jsonFile)
-    # pathToFile1 = 'online (1).json'
+    # pathToFile1 = 'code2.json'
     # with open(pathToFile1, 'rt', encoding='utf-8') as jsonFile1:
     #     jsonNEW = json.load(jsonFile1)
     # oldkeys = jsonOLD.keys()
