@@ -583,11 +583,14 @@ class _BaseCode:
                     break
                 elif _emptyLinePattern.match(lines[i]) is not None:
                     indexesForDeleting.append(i)
-                    if (lines[i+1].startswith(_strsForDel1Start) and
-                            _emptyLinePattern.match(lines[i+4]) is not None):
-                        continue
-                    else:
-                        break
+                    try:
+                        if (lines[i+1].startswith(_strsForDel1Start) and
+                                _emptyLinePattern.match(lines[i+4]) is not None):
+                            continue
+                        else:
+                            break
+                    except IndexError:
+                        continue 
                 elif (lines[i].startswith(_strsForDel1Start) or
                         lines[i].startswith(_strsForDel2Start)):
                     indexesForDeleting.append(i)
@@ -807,7 +810,7 @@ class _BaseCode:
                 if match is not None:
                     effective_date = match[0]
                 else:
-                    effective_date = 'не действовала'
+                    effective_date = 'не_действовала'
                 rdDocNumber = red['nd']
                 absolute_path = doc_id = \
                     (f"{cls.CODE_PART_KEY}/{cls.REDACTIONS_SIGN}-"
