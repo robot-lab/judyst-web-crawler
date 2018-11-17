@@ -104,7 +104,7 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
             decisionID = sourcePrefix + '/' + key
             docType = sourcePrefix + '/' + typePattern.search(key)[0]
             date = d[0].text_content()
-            title = d[1].text_content()
+            title = d[1].text_content().strip()
             url = d[2].getchildren()[0].get('href')
             headerElements = {'supertype': sourcePrefix,
                               'release_date': date, 'doc_type': docType,
@@ -135,7 +135,7 @@ def get_decision_headers(pagesNumber=None, sourcePrefix='КСРФ'):
         page = html.document_fromstring(get_page_html_by_num(
                                                         driver, template, i))
         if True:  # debug print:
-            print(f"Pages downloaded: {i-1}/{pagesNumber}")
+            print(f"Pages downloaded: {i-1}/{pagesNumber}", end='\r')
     driver.quit()
     return courtSiteContent
 
@@ -409,7 +409,7 @@ class LocalFileStorageSource(DataSource):
             with open(os.path.join(self.folder_path,
                       self.HEADERS_FILE_NAME),
                       'wt', encoding='utf-8') as headersFile:
-                headersFile.write(json.dumps(self.headers))
+                headersFile.write(json.dumps(self.headers, ensure_ascii=False))
 
 if __name__ == '__main__':
     headersOld = get_decision_headers()

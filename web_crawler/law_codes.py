@@ -958,7 +958,7 @@ class _BaseCode:
                           encoding='utf-8') as jsonlinesFile:
                     for key in cls.codeHeaders:
                         jsonlinesFile.write(json.dumps(
-                            {key: cls.codeHeaders[key]}) + '\n')
+                            {key: cls.codeHeaders[key]}, ensure_ascii=False) + '\n')
                 cls.codeHeaders = {}
                 with open(pathToFileForKeysThathWereDownloadedYet, 'at',
                           encoding='utf-8') as file:
@@ -966,7 +966,7 @@ class _BaseCode:
                 # print('ok')
             # pathToFile = f'{cls.CODE_PART_KEY}.json'
             # with open(pathToFile, 'wt', encoding='utf-8') as jsonFile:
-            #     json.dump(cls.codeHeaders, jsonFile)
+            #     json.dump(cls.codeHeaders, jsonFile, ensure_ascii=False)
             #     cls.codeHeaders = {}
         return cls.codeHeaders
 
@@ -1027,7 +1027,7 @@ _ALL_CODES = frozenset(_codesParsers.keys())
 def get_content(
         codes: set=_ALL_CODES,
         pathToResultJsonLinesFile='codeHeaders.jsonlines',
-        pathToFileForKeysThathWereDownloadedYet='processedYet.jsonlines'):
+        pathToFileForKeysThathWereDownloadedYet='processedYet.keys'):
     if hasattr(codes, '__iter__'):
         if isinstance(codes, str) and codes in _ALL_CODES:
             codes = {codes}
@@ -1062,7 +1062,8 @@ if __name__ == '__main__':
     # codes = 'КОАПРФ'
     # codes = {'НКРФ'}
     # codes = {'ГКРФ'}
-    codes = {'ГКРФ', 'НКРФ'}
+    # codes = {'ГКРФ', 'НКРФ'}
+    codes = {'КОАПРФ', 'УКРФ'}
     codeHeaders = get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
     # pathToFile = f'{list(codes)[0]}_codeHeaders.json'
@@ -1070,7 +1071,7 @@ if __name__ == '__main__':
     # if dirname:
     #     os.makedirs(dirname, exist_ok=True)
     # with open(pathToFile, 'w', encoding='utf-8') as jsonFile:
-    #     json.dump(codeHeaders, jsonFile)
+    #     json.dump(codeHeaders, jsonFile, ensure_ascii=False)
     input("press any key...")
     # pathToFile = 'code1.json'
     # with open(pathToFile, 'rt', encoding='utf-8') as jsonFile:
