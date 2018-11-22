@@ -232,9 +232,9 @@ class _BaseCode:
 
     @classmethod
     def create_header(cls, CUR_RD_KEY, supertype, doc_type, absolute_path,
-                      title, release_date, effective_date, attached, dstLabel,
-                      parLabelInSavedHtm, rdNote=None, consNote=None,
-                      text=None):
+                      interredaction_id, title, release_date, effective_date,
+                      attached, dstLabel, parLabelInSavedHtm, rdNote=None,
+                      consNote=None, text=None):
         attached.append(cls.CUR_CODE_PART_NAME)
         t = cls.codeHeaders[CUR_RD_KEY]
         ts = t['cons_selected_info']
@@ -246,6 +246,7 @@ class _BaseCode:
             'supertype': supertype,
             'doc_type': doc_type,
             'absolute_path': absolute_path,
+            'interredaction_id': interredaction_id,
             'title': title,
             'release_date': release_date,
             'effective_date': effective_date,
@@ -270,8 +271,9 @@ class _BaseCode:
         return header
 
     @classmethod
-    def create_subheader(cls, hKey, SUBH_SIGN, absolute_path, title,
-                         rdNote=None, consNote=None, text=None):
+    def create_subheader(cls, hKey, SUBH_SIGN, absolute_path,
+                         interredaction_id, title, rdNote=None,
+                         consNote=None, text=None):
         t = cls.codeHeaders[hKey]
         ts = t['cons_selected_info']
         attached = ts['attached_titles'][:]
@@ -280,6 +282,7 @@ class _BaseCode:
             'supertype': t['supertype'],
             'doc_type': f"{cls.codeHeaders[hKey]['doc_type']}/{SUBH_SIGN}",
             'absolute_path': absolute_path,
+            'interredaction_id': interredaction_id,
             'title': title,
             'release_date': t['release_date'],
             'effective_date': t['effective_date'],
@@ -327,15 +330,19 @@ class _BaseCode:
                 if (numPattern == cls.sectionNumberPattern or
                         numPattern == cls.chapterNumberPattern):
                     doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                    interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
                 else:
                     doc_id = f"{hKey}/{commonPart}"
+                    interredaction_id = \
+                        (f"{cls.codeHeaders[hKey]['interredaction_id']}/"
+                         f"{commonPart}")
                 doc_type = f"{cls.CODE_PREFIX}/{SIGN}"
                 absolute_path = \
                     f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
                 cls.codeHeaders[doc_id] = cls.create_header(
-                    CUR_RD_KEY, supertype, doc_type, absolute_path, title,
-                    release_date, effective_date, attached, dstLabel,
-                    htmParNum, rdNote, consNote)
+                    CUR_RD_KEY, supertype, doc_type, absolute_path,
+                    interredaction_id, title, release_date, effective_date,
+                    attached, dstLabel, htmParNum, rdNote, consNote)
                 # debug print
                 cls.recursCounter += 1
                 print(f"Recursive processing of headers up to and including "
@@ -367,6 +374,7 @@ class _BaseCode:
             if 'caption' not in item:
                 commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
                 doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
                 absolute_path = \
                     f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
                 doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
@@ -386,9 +394,9 @@ class _BaseCode:
                 else:
                     rdNote = None
                 cls.codeHeaders[doc_id] = cls.create_header(
-                    CUR_RD_KEY, supertype, doc_type, absolute_path, title,
-                    release_date, effective_date, attached, dstLabel,
-                    htmParNum, rdNote, consNote)
+                    CUR_RD_KEY, supertype, doc_type, absolute_path,
+                    interredaction_id, title, release_date, effective_date,
+                    attached, dstLabel, htmParNum, rdNote, consNote)
                 # debug print
                 cls.recursCounter += 1
                 print(f"Recursive processing of headers up to and including "
@@ -467,14 +475,15 @@ class _BaseCode:
                 for num in nums:
                     commonPart = f"{cls.ARTICLE_SIGN}-{num.lstrip()}"
                     doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                    interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
                     absolute_path = \
                         (f"{cls.codeHeaders[hKey]['absolute_path']}/"
                          f"{commonPart}")
                     doc_type = f"{cls.CODE_PREFIX}/{cls.ARTICLE_SIGN}"
                     cls.codeHeaders[doc_id] = cls.create_header(
-                        CUR_RD_KEY, supertype, doc_type, absolute_path, title,
-                        release_date, effective_date, attached, dstLabel,
-                        htmParNum, rdNote, consNote)
+                        CUR_RD_KEY, supertype, doc_type, absolute_path,
+                        interredaction_id, title, release_date, effective_date,
+                        attached, dstLabel, htmParNum, rdNote, consNote)
                     # debug print
                     cls.recursCounter += 1
                     print(
@@ -585,12 +594,13 @@ class _BaseCode:
                     indexesForDeleting.append(i)
                     try:
                         if (lines[i+1].startswith(_strsForDel1Start) and
-                                _emptyLinePattern.match(lines[i+4]) is not None):
+                                _emptyLinePattern.match(
+                                    lines[i+4]) is not None):
                             continue
                         else:
                             break
                     except IndexError:
-                        continue 
+                        continue
                 elif (lines[i].startswith(_strsForDel1Start) or
                         lines[i].startswith(_strsForDel2Start)):
                     indexesForDeleting.append(i)
@@ -673,6 +683,9 @@ class _BaseCode:
                     indexes.append(i)
                 if cls.noteCheckPattern.match(lines[i]['text']) is not None:
                     doc_id = f"{key}/{cls.NOTE_SIGN}"
+                    interredaction_id = \
+                        (f"{cls.codeHeaders[key]['interredaction_id']}/"
+                         f"{cls.NOTE_SIGN}")
                     absolute_path = (f"{cls.codeHeaders[key]['absolute_path']}"
                                      f"/{cls.NOTE_SIGN}")
                     title = cls.NOTE_NAME_PREFIX
@@ -689,8 +702,8 @@ class _BaseCode:
                         textLines.append(line['text'])
                     text = '\n'.join(textLines)
                     cls.codeHeaders[doc_id] = cls.create_subheader(
-                        key, cls.NOTE_SIGN, absolute_path, title, rdNote,
-                        consNote, text)
+                        key, cls.NOTE_SIGN, absolute_path, interredaction_id,
+                        title, rdNote, consNote, text)
                     if i != len(lines)-1:
                         lines[i]['text'] = cls.noteWordDelPattern.sub(
                                                         '', lines[i]['text'])
@@ -705,6 +718,9 @@ class _BaseCode:
                     i = indexes[j]
                     num = cls.partNumberPattern.match(lines[i]['text'])[0]
                     doc_id = f"{key}/{cls.PART_SIGN}-{num}"
+                    interredaction_id = \
+                        (f"{cls.codeHeaders[key]['interredaction_id']}/"
+                         f"{cls.PART_SIGN}-{num}")
                     absolute_path = (f"{cls.codeHeaders[key]['absolute_path']}"
                                      f"/{cls.PART_SIGN}-{num}")
                     title = cls.PART_NAME_PREFIX + str(num)
@@ -725,8 +741,8 @@ class _BaseCode:
                         textLines.append(line['text'])
                     text = '\n'.join(textLines)
                     cls.codeHeaders[doc_id] = cls.create_subheader(
-                        key, cls.PART_SIGN, absolute_path, title, rdNote,
-                        consNote, text)
+                        key, cls.PART_SIGN, absolute_path, interredaction_id,
+                        title, rdNote, consNote, text)
                     if i2-i != 1:
                         pass  # work in progress (abzats, punkts, podpunkts)
                         # lines[i]['text'] = cls.partNumberDelPattern.sub(
@@ -958,7 +974,8 @@ class _BaseCode:
                           encoding='utf-8') as jsonlinesFile:
                     for key in cls.codeHeaders:
                         jsonlinesFile.write(json.dumps(
-                            {key: cls.codeHeaders[key]}, ensure_ascii=False) + '\n')
+                            {key: cls.codeHeaders[key]},
+                            ensure_ascii=False) + '\n')
                 cls.codeHeaders = {}
                 with open(pathToFileForKeysThathWereDownloadedYet, 'at',
                           encoding='utf-8') as file:
@@ -1013,7 +1030,6 @@ class _Gkrf(_BaseCode):
     PUNKT_NAME_PREFIX = 'Пункт (подпункт) '
     PODPUNKT_NAME_PREFIX = 'Подпункт (подподпункт) '
 
-
 _codesParsers = {
     'КОАПРФ': _Koaprf,
     'НКРФ': _Nkrf,
@@ -1062,8 +1078,8 @@ if __name__ == '__main__':
     # codes = 'КОАПРФ'
     # codes = {'НКРФ'}
     # codes = {'ГКРФ'}
-    # codes = {'ГКРФ', 'НКРФ'}
-    codes = {'КОАПРФ', 'УКРФ'}
+    codes = {'ГКРФ', 'НКРФ'}
+    # codes = {'КОАПРФ', 'УКРФ'}
     codeHeaders = get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
     # pathToFile = f'{list(codes)[0]}_codeHeaders.json'

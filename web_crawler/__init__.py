@@ -17,7 +17,7 @@ Crawler = WebCrawler([Local_database_source, KSRF_Source])
 
 def Init(sourceNameList=None, databaseSource=None):
     '''
-    Initialize web_crawler for working. 
+    Initialize web_crawler for working.
     Should be invoked before any actions with
     Crawler
     '''
