@@ -1072,31 +1072,9 @@ if __name__ == '__main__':
     import json
     import time
     start_time = time.time()
-    # codes = {'КОАПРФ', 'НКРФ', 'ГКРФ', 'УКРФ'}
-    # codes = {'КОАПРФ'}
-    # codes = {'УКРФ'}
     # codes = 'КОАПРФ'
-    # codes = {'НКРФ'}
-    # codes = {'ГКРФ'}
-    codes = {'ГКРФ', 'НКРФ'}
     # codes = {'КОАПРФ', 'УКРФ'}
-    codeHeaders = get_content(codes)
+    codes = {'КОАПРФ', 'НКРФ', 'ГКРФ', 'УКРФ'}
+    get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
-    # pathToFile = f'{list(codes)[0]}_codeHeaders.json'
-    # dirname = os.path.dirname(pathToFile)
-    # if dirname:
-    #     os.makedirs(dirname, exist_ok=True)
-    # with open(pathToFile, 'w', encoding='utf-8') as jsonFile:
-    #     json.dump(codeHeaders, jsonFile, ensure_ascii=False)
     input("press any key...")
-    # pathToFile = 'code1.json'
-    # with open(pathToFile, 'rt', encoding='utf-8') as jsonFile:
-    #     jsonOLD = json.load(jsonFile)
-    # pathToFile1 = 'code2.json'
-    # with open(pathToFile1, 'rt', encoding='utf-8') as jsonFile1:
-    #     jsonNEW = json.load(jsonFile1)
-    # oldkeys = jsonOLD.keys()
-    # newkeys = jsonNEW.keys()
-    # ab = oldkeys - newkeys
-    # ba = newkeys - oldkeys
-    # print(1)
