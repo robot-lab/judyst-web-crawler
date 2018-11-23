@@ -778,8 +778,6 @@ class _BaseCode:
             text_source_url = codeURL = cls.CODE_URLS[i]
             # debug start
             # testurl = 'http://www.consultant.ru/document/cons_doc_law_10699/'
-            # testurl = 'http://www.consultant.ru/document/cons_doc_LAW_5142/'
-            # codeURL = testurl
             # debug end
             pageWithTitleAndDocNum, response = _get_page(codeURL,
                                                          _REQHEADERS)
@@ -945,12 +943,7 @@ class _BaseCode:
                             f"http://{_HOST}/cons/cgi/online.cgi?req=query"
                             f"&div=LAW&REFDOC={rdDocNumber}&REFBASE=LAW"
                             f"&REFTYPE=CDLT_DOC_I_BACKREFS&mode=backrefs")
-                        }  # ,
-                    # 'cons_raw_info': {
-                    #     'docContent': docContent,
-                    #     'attachedTitles': attachedTitles,
-                    #     'treeItem': treeItem
-                    #     }
+                        }
                     }
                 rekeyedAttachedTitles = {}
                 del attachedTitles[0]
@@ -980,11 +973,6 @@ class _BaseCode:
                 with open(pathToFileForKeysThathWereDownloadedYet, 'at',
                           encoding='utf-8') as file:
                     file.write(doc_id + '\n')
-                # print('ok')
-            # pathToFile = f'{cls.CODE_PART_KEY}.json'
-            # with open(pathToFile, 'wt', encoding='utf-8') as jsonFile:
-            #     json.dump(cls.codeHeaders, jsonFile, ensure_ascii=False)
-            #     cls.codeHeaders = {}
         return cls.codeHeaders
 
 
