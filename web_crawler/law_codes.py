@@ -133,14 +133,14 @@ class _BaseCode:
     sectionNumberPattern = re.compile(
         r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
     subsectionNumberPattern = re.compile(
-        r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+        r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*')
     paragraphNumberPattern = re.compile(
-        r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-    subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
+        r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*')
+    subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*')
     chapterNumberPattern = re.compile(
-        r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+        r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*')
     articleNumberPattern = re.compile(
-        r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+        r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*')
     articlesNumbersPattern = re.compile(
         r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
         r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
@@ -279,7 +279,7 @@ class _BaseCode:
             nonlocal articleLines
             nonlocal rd_doc_id_prefix
             nonlocal splittedHtm
-            num = numPattern.search(item['caption'])
+            num = numPattern.search(title)
             if num is not None:
                 commonPart = f"{SIGN}-{num[0].lstrip()}"
                 if (numPattern == cls.sectionNumberPattern or
@@ -328,52 +328,16 @@ class _BaseCode:
         release_date = cls.codeHeaders[CUR_RD_KEY]['release_date']
         effective_date = cls.codeHeaders[CUR_RD_KEY]['effective_date']
 
-        cls.partOfCodeCounter = 1
         for item in treeItem:
-            if 'caption' not in item:
-                commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
-                doc_id = f"{rd_doc_id_prefix}/{commonPart}"
-                interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
-                absolute_path = \
-                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
-                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
+            try:
+                title = item['caption'] + item['_text']
+            except KeyError:
                 title = item['_text']
-                dstLabel = item['label']
-                try:
-                    attached = rekeyedAttachedTitles[title]['tooltip']
-                except KeyError:
-                    continue
-                htmParNum = splittedHtm[title]['htmParNum']
-                if 'cons_note' in splittedHtm[title]:
-                    consNote = splittedHtm[title]['cons_note']
-                else:
-                    consNote = None
-                if 'redaction_note' in splittedHtm[title]:
-                    rdNote = splittedHtm[title]['redaction_note']
-                else:
-                    rdNote = None
-                cls.codeHeaders[doc_id] = cls.create_header(
-                    CUR_RD_KEY, supertype, doc_type, absolute_path,
-                    interredaction_id, title, release_date, effective_date,
-                    attached, dstLabel, htmParNum, rdNote, consNote)
-                # debug print
-                cls.recursCounter += 1
-                print(f"Recursive processing of headers up to and including "
-                      f"articles {cls.recursCounter}...", end='\r')
-                if item['treeItem']:
-                    articleLines.update(
-                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
-                            item['treeItem'], doc_id, CUR_RD_KEY,
-                            rekeyedAttachedTitles, splittedHtm
-                            )
-                        )
-                else:
-                    return articleLines
-                continue
-
-            title = item['caption'] + item['_text']
             dstLabel = item['label']
-            attached = rekeyedAttachedTitles[title]['tooltip']
+            try:
+                attached = rekeyedAttachedTitles[title]['tooltip']
+            except KeyError:
+                continue
             htmParNum = splittedHtm[title]['htmParNum']
             if 'cons_note' in splittedHtm[title]:
                     consNote = splittedHtm[title]['cons_note']
@@ -414,19 +378,15 @@ class _BaseCode:
                 return None
             if spam != 'parsed is null':
                 continue
-            nums = cls.articlesNumbersPattern.findall(item['caption'])
-            if not nums:
-                rangeNums = cls.partNumberRangePattern.search(item['caption'])
-                if rangeNums is None:
-                    rangeNums = cls.partNumberRangePattern.search(
-                        item['caption']+item['_text'])
-                if rangeNums is not None:
-                    rNums = cls.partNumberRangeNumPattern.findall(rangeNums[0])
-                    template = rNums[0]
-                    digitFrom = int(
-                        cls.partNumberRangeNumLastNum.search(rNums[0])[0])
-                    digitTo = int(
-                        cls.partNumberRangeNumLastNum.search(rNums[1])[0])
+            nums = cls.articlesNumbersPattern.findall(title)
+            rangeNums = cls.partNumberRangePattern.search(title)
+            if not nums and rangeNums is not None:
+                rNums = cls.partNumberRangeNumPattern.findall(rangeNums[0])
+                template = rNums[0]
+                digitFrom = int(
+                    cls.partNumberRangeNumLastNum.search(rNums[0])[0])
+                digitTo = int(
+                    cls.partNumberRangeNumLastNum.search(rNums[1])[0])
                 for i in range(digitFrom, digitTo+1):
                     num = cls.partNumberRangeNumLastNum.sub(str(i), template)
                     nums.append(num)
@@ -453,7 +413,31 @@ class _BaseCode:
                     else:
                         articleLines[doc_id] = splittedHtm[title]['lines']
             else:
-                raise Exception(f"{hKey}. Cannot parse a number.")
+                if 'partOfCodeCounter' not in cls.__dict__:
+                    cls.partOfCodeCounter = 1
+                else:
+                    cls.partOfCodeCounter += 1
+                commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
+                doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
+                absolute_path = \
+                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
+                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
+                cls.codeHeaders[doc_id] = cls.create_header(
+                    CUR_RD_KEY, supertype, doc_type, absolute_path,
+                    interredaction_id, title, release_date, effective_date,
+                    attached, dstLabel, htmParNum, rdNote, consNote)
+                # debug print
+                cls.recursCounter += 1
+                print(f"Recursive processing of headers up to and including "
+                      f"articles {cls.recursCounter}...", end='\r')
+                if item['treeItem']:
+                    articleLines.update(
+                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
+                            item['treeItem'], doc_id, CUR_RD_KEY,
+                            rekeyedAttachedTitles, splittedHtm
+                            )
+                        )
         return articleLines
 
     @classmethod
