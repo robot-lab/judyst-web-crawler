@@ -1,6 +1,8 @@
 import re
 import random
 import zipfile
+import json
+import os
 
 # Import libs:
 
@@ -25,68 +27,6 @@ _REQHEADERS = {
     'Accept-Charset': 'utf-8',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     }
-
-_CODE_PART_SIGN = 'ЧК'
-_REDACTIONS_SIGN = 'РЕД'
-_SECTION_SIGN = 'Р'
-_SUBSECTION_SIGN = 'ПДР'
-_CHAPTER_SIGN = 'ГЛ'
-_PARAGRAPH_SIGN = 'ПРГ'
-_SUBPARAGRAPH_SIGN = 'ПДПРГ'
-_ARTICLE_SIGN = 'СТ'
-_NOTE_SIGN = 'ПРМ'
-_PART_SIGN = 'Ч'
-_ABZATS_SIGN = 'А'
-_PUNKT_SIGN = 'П'
-_PODPUNKT_SIGN = 'ПП'
-
-_NOTE_NAME_PREFIX = 'Примечание'
-_PART_NAME_PREFIX = 'Часть '
-_PUNKT_NAME_PREFIX = 'Пункт '
-_PODPUNKT_NAME_PREFIX = 'Подпункт '
-_ABZATS_NAME_PREFIX = 'Абзац '
-
-_sectionNumberPattern = re.compile(
-    r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
-_subsectionNumberPattern = re.compile(
-    r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_paragraphNumberPattern = re.compile(r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
-_chapterNumberPattern = re.compile(
-    r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_articleNumberPattern = re.compile(
-    r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_articlesNumbersPattern = re.compile(
-    r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\s)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\,)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\)))'
-    )
-
-_partNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\.)')
-_partNumberRangePattern = re.compile(
-   r'\d+(?:\.[-–—\d]+\.*?)*\s*?[-–—]\s*?\d+(?:\.[-–—\d]+\.*?)*(?=\.)')
-_partNumberRangeNumPattern = re.compile(r'\d+(?:\.[-–—\d]+)*')
-_partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
-
-_punktNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\)\s)')
-_punktNumberRangePattern = re.compile(
-    r'\d+(?:\.[-–—\d]+)*\)\s*?-\s*?\d+(?:\.[-–—\d]+)*\)(?=\s)')
-
-_podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
-_podpunktNumberRangePattern = re.compile(
-    r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
-
-_noteCheckPattern = re.compile(
-    r'(?:Примечание.(?!\s[Уу]тратило силу\.)|'
-    r'Примечания(?:\.|:))(?!\s[Уу]тратили силу\.)')
-_noteWordDelPattern = re.compile(
-    r'(?:Примечание.\s+|Примечания:\s+|Примечания.\s+)')
-_partNumberDelPattern = re.compile(r'\d+(?:\.[-–—\d]+)*\.\s*')
-_redactionBlockPattern = re.compile(
-    rf'(?:(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
-    rf'(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*)')
 
 
 _justNumberPattern = re.compile(r'\d+')
@@ -170,50 +110,65 @@ class _BaseCode:
         )
     CODE_PREFIX = 'Аббревиатура кодекса'
     CODE_PART_NAMES = ('Кодекс Ч1', 'Кодекс Ч2', 'Кодекс Ч3')
-    CODE_PART_SIGN = _CODE_PART_SIGN
+    CODE_PART_SIGN = 'ЧК'
+    REDACTIONS_SIGN = 'РЕД'
+    SECTION_SIGN = 'Р'
+    SUBSECTION_SIGN = 'ПДР'
+    CHAPTER_SIGN = 'ГЛ'
+    PARAGRAPH_SIGN = 'ПРГ'
+    SUBPARAGRAPH_SIGN = 'ПДПРГ'
+    ARTICLE_SIGN = 'СТ'
+    NOTE_SIGN = 'ПРМ'
+    PART_SIGN = 'Ч'
+    ABZATS_SIGN = 'А'
+    PUNKT_SIGN = 'П'
+    PODPUNKT_SIGN = 'ПП'
 
-    REDACTIONS_SIGN = _REDACTIONS_SIGN
-    SECTION_SIGN = _SECTION_SIGN
-    SUBSECTION_SIGN = _SUBSECTION_SIGN
-    CHAPTER_SIGN = _CHAPTER_SIGN
-    PARAGRAPH_SIGN = _PARAGRAPH_SIGN
-    SUBPARAGRAPH_SIGN = _SUBPARAGRAPH_SIGN
-    ARTICLE_SIGN = _ARTICLE_SIGN
-    NOTE_SIGN = _NOTE_SIGN
-    PART_SIGN = _PART_SIGN
-    ABZATS_SIGN = _ABZATS_SIGN
-    PUNKT_SIGN = _PUNKT_SIGN
-    PODPUNKT_SIGN = _PODPUNKT_SIGN
+    NOTE_NAME_PREFIX = 'Примечание'
+    PART_NAME_PREFIX = 'Часть '
+    PUNKT_NAME_PREFIX = 'Пункт '
+    PODPUNKT_NAME_PREFIX = 'Подпункт '
+    ABZATS_NAME_PREFIX = 'Абзац '
 
-    NOTE_NAME_PREFIX = _NOTE_NAME_PREFIX
-    PART_NAME_PREFIX = _PART_NAME_PREFIX
-    PUNKT_NAME_PREFIX = _PUNKT_NAME_PREFIX
-    PODPUNKT_NAME_PREFIX = _PODPUNKT_NAME_PREFIX
-    ABZATS_NAME_PREFIX = _ABZATS_NAME_PREFIX
+    sectionNumberPattern = re.compile(
+        r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
+    subsectionNumberPattern = re.compile(
+        r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    paragraphNumberPattern = re.compile(
+        r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
+    chapterNumberPattern = re.compile(
+        r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    articleNumberPattern = re.compile(
+        r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
+    articlesNumbersPattern = re.compile(
+        r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\s)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\,)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\)))'
+        )
 
-    sectionNumberPattern = _sectionNumberPattern
-    subsectionNumberPattern = _subsectionNumberPattern
-    paragraphNumberPattern = _paragraphNumberPattern
-    subparagraphNumberPattern = _subparagraphNumberPattern
-    chapterNumberPattern = _chapterNumberPattern
-    articleNumberPattern = _articleNumberPattern
+    partNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\.)')
+    partNumberRangePattern = re.compile(
+        r'\d+(?:\.[-–—\d]+\.*?)*\s*?[-–—]\s*?\d+(?:\.[-–—\d]+\.*?)*(?=\.)')
+    partNumberRangeNumPattern = re.compile(r'\d+(?:\.[-–—\d]+)*')
+    partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
 
-    articlesNumbersPattern = _articlesNumbersPattern
+    punktNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\)\s)')
+    punktNumberRangePattern = re.compile(
+        r'\d+(?:\.[-–—\d]+)*\)\s*?-\s*?\d+(?:\.[-–—\d]+)*\)(?=\s)')
 
-    partNumberPattern = _partNumberPattern
-    partNumberRangePattern = _partNumberRangePattern
-    partNumberRangeNumPattern = _partNumberRangeNumPattern
-    partNumberRangeNumLastNum = _partNumberRangeNumLastNum
+    podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
+    podpunktNumberRangePattern = re.compile(
+        r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
 
-    punktNumberPattern = _punktNumberPattern
-    punktNumberRangePattern = _punktNumberRangePattern
-
-    podpunktNumberPattern = _podpunktNumberPattern
-    podpunktNumberRangePattern = _podpunktNumberRangePattern
-
-    noteCheckPattern = _noteCheckPattern
-    noteWordDelPattern = _noteWordDelPattern
-    partNumberDelPattern = _partNumberDelPattern
+    noteCheckPattern = re.compile(
+        r'(?:Примечание.(?!\s[Уу]тратило силу\.)|'
+        r'Примечания(?:\.|:))(?!\s[Уу]тратили силу\.)')
+    noteWordDelPattern = re.compile(
+        r'(?:Примечание.\s+|Примечания:\s+|Примечания.\s+)')
+    partNumberDelPattern = re.compile(r'\d+(?:\.[-–—\d]+)*\.\s*')
     redactionBlockPattern = re.compile(
         rf'(?:(?<=/){REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
         rf'(?<=/){REDACTIONS_SIGN}-[-N\.\d]*)')
@@ -356,8 +311,9 @@ class _BaseCode:
                             rekeyedAttachedTitles, splittedHtm
                             )
                         )
+                    return 'ok'
                 else:
-                    return 'tree is null'
+                    return 'subtree is null'
             else:
                 return 'parsed is null'
 
@@ -427,33 +383,23 @@ class _BaseCode:
 
             spam = frequent_case(cls.SECTION_SIGN, cls.sectionNumberPattern,
                                  item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBSECTION_SIGN,
                                  cls.subsectionNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.CHAPTER_SIGN, cls.chapterNumberPattern,
                                  item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.PARAGRAPH_SIGN,
                                  cls.paragraphNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBPARAGRAPH_SIGN,
                                  cls.subparagraphNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam != 'parsed is null':
                 continue
             nums = cls.articlesNumbersPattern.findall(item['caption'])
             if not nums:
@@ -973,7 +919,8 @@ class _BaseCode:
                 with open(pathToFileForKeysThathWereDownloadedYet, 'at',
                           encoding='utf-8') as file:
                     file.write(doc_id + '\n')
-        return cls.codeHeaders
+        # return cls.codeHeaders
+        return None
 
 
 class _Ukrf(_BaseCode):
@@ -1047,17 +994,16 @@ def get_content(
     else:
         raise TypeError(f"'Codes' must be iterable structure with {type(str)} "
                         "as elements.")
-    codesContent = {}
+    # codesContent = {}
     for code in codes:
-        codeContent = _codesParsers[code].get_code_content(
+        _codesParsers[code].get_code_content(
             pathToResultJsonLinesFile, pathToFileForKeysThathWereDownloadedYet)
-        codesContent.update(codeContent)
-    return codesContent
+        # codesContent.update(codeContent)
+    # return codesContent
+    return None
 
 
 if __name__ == '__main__':
-    import os
-    import json
     import time
     start_time = time.time()
     # codes = 'КОАПРФ'
