@@ -288,9 +288,12 @@ class _BaseCode:
                     interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
                 else:
                     doc_id = f"{hKey}/{commonPart}"
-                    interredaction_id = \
-                        (f"{cls.codeHeaders[hKey]['interredaction_id']}/"
-                         f"{commonPart}")
+                    try:
+                        interredaction_id = \
+                            (f"{cls.codeHeaders[hKey]['interredaction_id']}/"
+                             f"{commonPart}")
+                    except KeyError:
+                        return 'treeItem is broken'
                 doc_type = f"{cls.CODE_PREFIX}/{SIGN}"
                 absolute_path = \
                     f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
@@ -383,22 +386,32 @@ class _BaseCode:
 
             spam = frequent_case(cls.SECTION_SIGN, cls.sectionNumberPattern,
                                  item)
+            if spam == 'treeItem is broken':
+                return None
             if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBSECTION_SIGN,
                                  cls.subsectionNumberPattern, item)
+            if spam == 'treeItem is broken':
+                return None
             if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.CHAPTER_SIGN, cls.chapterNumberPattern,
                                  item)
+            if spam == 'treeItem is broken':
+                return None
             if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.PARAGRAPH_SIGN,
                                  cls.paragraphNumberPattern, item)
+            if spam == 'treeItem is broken':
+                return None
             if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBPARAGRAPH_SIGN,
                                  cls.subparagraphNumberPattern, item)
+            if spam == 'treeItem is broken':
+                return None
             if spam != 'parsed is null':
                 continue
             nums = cls.articlesNumbersPattern.findall(item['caption'])
@@ -906,6 +919,16 @@ class _BaseCode:
                         treeItem, doc_id, CUR_RD_KEY, rekeyedAttachedTitles,
                         splittedHtm)
 
+                # stub for case with broken treeItem
+                if articleLines is None:
+                    print(f"\nWarning: broken treeItem. rd: {CUR_RD_KEY}, "
+                          f"rd_doc_num: {rdDocNumber}")
+                    cls.codeHeaders = {}
+                    with open(pathToFileForKeysThathWereDownloadedYet, 'at',
+                              encoding='utf-8') as file:
+                        file.write(doc_id + '\n')
+                    continue
+
                 articleSubheadersTreeItem = \
                     cls.build_article_subheaders_treeItem(articleLines,
                                                           CUR_RD_KEY)
@@ -1008,7 +1031,7 @@ if __name__ == '__main__':
     start_time = time.time()
     # codes = 'КОАПРФ'
     # codes = {'КОАПРФ', 'УКРФ'}
-    codes = {'КОАПРФ', 'НКРФ', 'ГКРФ', 'УКРФ'}
+    codes = {'КОАПРФ', 'НКРФ', 'УКРФ', 'ГКРФ'}
     get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
     input("press any key...")
