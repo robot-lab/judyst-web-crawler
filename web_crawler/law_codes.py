@@ -1,6 +1,8 @@
 import re
 import random
 import zipfile
+import json
+import os
 
 # Import libs:
 
@@ -25,68 +27,6 @@ _REQHEADERS = {
     'Accept-Charset': 'utf-8',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     }
-
-_CODE_PART_SIGN = 'ЧК'
-_REDACTIONS_SIGN = 'РЕД'
-_SECTION_SIGN = 'Р'
-_SUBSECTION_SIGN = 'ПДР'
-_CHAPTER_SIGN = 'ГЛ'
-_PARAGRAPH_SIGN = 'ПРГ'
-_SUBPARAGRAPH_SIGN = 'ПДПРГ'
-_ARTICLE_SIGN = 'СТ'
-_NOTE_SIGN = 'ПРМ'
-_PART_SIGN = 'Ч'
-_ABZATS_SIGN = 'А'
-_PUNKT_SIGN = 'П'
-_PODPUNKT_SIGN = 'ПП'
-
-_NOTE_NAME_PREFIX = 'Примечание'
-_PART_NAME_PREFIX = 'Часть '
-_PUNKT_NAME_PREFIX = 'Пункт '
-_PODPUNKT_NAME_PREFIX = 'Подпункт '
-_ABZATS_NAME_PREFIX = 'Абзац '
-
-_sectionNumberPattern = re.compile(
-    r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
-_subsectionNumberPattern = re.compile(
-    r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_paragraphNumberPattern = re.compile(r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*(?=\.)')
-_chapterNumberPattern = re.compile(
-    r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_articleNumberPattern = re.compile(
-    r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.)')
-_articlesNumbersPattern = re.compile(
-    r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\s)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\,)|'
-    r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\)))'
-    )
-
-_partNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\.)')
-_partNumberRangePattern = re.compile(
-   r'\d+(?:\.[-–—\d]+\.*?)*\s*?[-–—]\s*?\d+(?:\.[-–—\d]+\.*?)*(?=\.)')
-_partNumberRangeNumPattern = re.compile(r'\d+(?:\.[-–—\d]+)*')
-_partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
-
-_punktNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\)\s)')
-_punktNumberRangePattern = re.compile(
-    r'\d+(?:\.[-–—\d]+)*\)\s*?-\s*?\d+(?:\.[-–—\d]+)*\)(?=\s)')
-
-_podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
-_podpunktNumberRangePattern = re.compile(
-    r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
-
-_noteCheckPattern = re.compile(
-    r'(?:Примечание.(?!\s[Уу]тратило силу\.)|'
-    r'Примечания(?:\.|:))(?!\s[Уу]тратили силу\.)')
-_noteWordDelPattern = re.compile(
-    r'(?:Примечание.\s+|Примечания:\s+|Примечания.\s+)')
-_partNumberDelPattern = re.compile(r'\d+(?:\.[-–—\d]+)*\.\s*')
-_redactionBlockPattern = re.compile(
-    rf'(?:(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
-    rf'(?<=/){_REDACTIONS_SIGN}-[-N\.\d]*)')
 
 
 _justNumberPattern = re.compile(r'\d+')
@@ -170,50 +110,65 @@ class _BaseCode:
         )
     CODE_PREFIX = 'Аббревиатура кодекса'
     CODE_PART_NAMES = ('Кодекс Ч1', 'Кодекс Ч2', 'Кодекс Ч3')
-    CODE_PART_SIGN = _CODE_PART_SIGN
+    CODE_PART_SIGN = 'ЧК'
+    REDACTIONS_SIGN = 'РЕД'
+    SECTION_SIGN = 'Р'
+    SUBSECTION_SIGN = 'ПДР'
+    CHAPTER_SIGN = 'ГЛ'
+    PARAGRAPH_SIGN = 'ПРГ'
+    SUBPARAGRAPH_SIGN = 'ПДПРГ'
+    ARTICLE_SIGN = 'СТ'
+    NOTE_SIGN = 'ПРМ'
+    PART_SIGN = 'Ч'
+    ABZATS_SIGN = 'А'
+    PUNKT_SIGN = 'П'
+    PODPUNKT_SIGN = 'ПП'
 
-    REDACTIONS_SIGN = _REDACTIONS_SIGN
-    SECTION_SIGN = _SECTION_SIGN
-    SUBSECTION_SIGN = _SUBSECTION_SIGN
-    CHAPTER_SIGN = _CHAPTER_SIGN
-    PARAGRAPH_SIGN = _PARAGRAPH_SIGN
-    SUBPARAGRAPH_SIGN = _SUBPARAGRAPH_SIGN
-    ARTICLE_SIGN = _ARTICLE_SIGN
-    NOTE_SIGN = _NOTE_SIGN
-    PART_SIGN = _PART_SIGN
-    ABZATS_SIGN = _ABZATS_SIGN
-    PUNKT_SIGN = _PUNKT_SIGN
-    PODPUNKT_SIGN = _PODPUNKT_SIGN
+    NOTE_NAME_PREFIX = 'Примечание'
+    PART_NAME_PREFIX = 'Часть '
+    PUNKT_NAME_PREFIX = 'Пункт '
+    PODPUNKT_NAME_PREFIX = 'Подпункт '
+    ABZATS_NAME_PREFIX = 'Абзац '
 
-    NOTE_NAME_PREFIX = _NOTE_NAME_PREFIX
-    PART_NAME_PREFIX = _PART_NAME_PREFIX
-    PUNKT_NAME_PREFIX = _PUNKT_NAME_PREFIX
-    PODPUNKT_NAME_PREFIX = _PODPUNKT_NAME_PREFIX
-    ABZATS_NAME_PREFIX = _ABZATS_NAME_PREFIX
+    sectionNumberPattern = re.compile(
+        r'(?<=(?i)Раздел\s)\s*?[A-Za-z]+(?:\.[-–—\d]+)*')
+    subsectionNumberPattern = re.compile(
+        r'(?<=(?i)Подраздел\s)\s*?\d+(?:\.[-–—\d]+)*')
+    paragraphNumberPattern = re.compile(
+        r'(?<=§\s)\s*?\d+(?:\.[-–—\d]+)*')
+    subparagraphNumberPattern = re.compile(r'(?<=^)\d+(?:\.[-–—\d]+)*')
+    chapterNumberPattern = re.compile(
+        r'(?<=(?i)Глава\s)\s*?\d+(?:\.[-–—\d]+)*')
+    articleNumberPattern = re.compile(
+        r'(?<=(?i)Статья\s)\s*?\d+(?:\.[-–—\d]+)*')
+    articlesNumbersPattern = re.compile(
+        r'(?:(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.$)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\.\s)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\s)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\,)|'
+        r'(?<=[Сс]татья\s)\s*?\d+(?:\.[-–—\d]+)*(?=\)))'
+        )
 
-    sectionNumberPattern = _sectionNumberPattern
-    subsectionNumberPattern = _subsectionNumberPattern
-    paragraphNumberPattern = _paragraphNumberPattern
-    subparagraphNumberPattern = _subparagraphNumberPattern
-    chapterNumberPattern = _chapterNumberPattern
-    articleNumberPattern = _articleNumberPattern
+    partNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\.)')
+    partNumberRangePattern = re.compile(
+        r'\d+(?:\.[-–—\d]+\.*?)*\s*?[-–—]\s*?\d+(?:\.[-–—\d]+\.*?)*(?=\.)')
+    partNumberRangeNumPattern = re.compile(r'\d+(?:\.[-–—\d]+)*')
+    partNumberRangeNumLastNum = re.compile(r'(?:\d+$|\d+(?=\.$))')
 
-    articlesNumbersPattern = _articlesNumbersPattern
+    punktNumberPattern = re.compile(r'\d+(?:\.[-–—\d]+)*(?=\)\s)')
+    punktNumberRangePattern = re.compile(
+        r'\d+(?:\.[-–—\d]+)*\)\s*?-\s*?\d+(?:\.[-–—\d]+)*\)(?=\s)')
 
-    partNumberPattern = _partNumberPattern
-    partNumberRangePattern = _partNumberRangePattern
-    partNumberRangeNumPattern = _partNumberRangeNumPattern
-    partNumberRangeNumLastNum = _partNumberRangeNumLastNum
+    podpunktNumberPattern = re.compile(r'[а-яa-z][-–—.а-яa-z]*(?=\)\s)')
+    podpunktNumberRangePattern = re.compile(
+        r'[а-яa-z][-.а-яa-z]*\)\s*?-\s*?[а-яa-z][-–—.а-яa-z]*\)(?=\s)')
 
-    punktNumberPattern = _punktNumberPattern
-    punktNumberRangePattern = _punktNumberRangePattern
-
-    podpunktNumberPattern = _podpunktNumberPattern
-    podpunktNumberRangePattern = _podpunktNumberRangePattern
-
-    noteCheckPattern = _noteCheckPattern
-    noteWordDelPattern = _noteWordDelPattern
-    partNumberDelPattern = _partNumberDelPattern
+    noteCheckPattern = re.compile(
+        r'(?:Примечание.(?!\s[Уу]тратило силу\.)|'
+        r'Примечания(?:\.|:))(?!\s[Уу]тратили силу\.)')
+    noteWordDelPattern = re.compile(
+        r'(?:Примечание.\s+|Примечания:\s+|Примечания.\s+)')
+    partNumberDelPattern = re.compile(r'\d+(?:\.[-–—\d]+)*\.\s*')
     redactionBlockPattern = re.compile(
         rf'(?:(?<=/){REDACTIONS_SIGN}-[-N\.\d]*?(?=/)|'
         rf'(?<=/){REDACTIONS_SIGN}-[-N\.\d]*)')
@@ -324,7 +279,7 @@ class _BaseCode:
             nonlocal articleLines
             nonlocal rd_doc_id_prefix
             nonlocal splittedHtm
-            num = numPattern.search(item['caption'])
+            num = numPattern.search(title)
             if num is not None:
                 commonPart = f"{SIGN}-{num[0].lstrip()}"
                 if (numPattern == cls.sectionNumberPattern or
@@ -333,9 +288,12 @@ class _BaseCode:
                     interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
                 else:
                     doc_id = f"{hKey}/{commonPart}"
-                    interredaction_id = \
-                        (f"{cls.codeHeaders[hKey]['interredaction_id']}/"
-                         f"{commonPart}")
+                    try:
+                        interredaction_id = \
+                            (f"{cls.codeHeaders[hKey]['interredaction_id']}/"
+                             f"{commonPart}")
+                    except KeyError:
+                        return 'treeItem is broken'
                 doc_type = f"{cls.CODE_PREFIX}/{SIGN}"
                 absolute_path = \
                     f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
@@ -356,8 +314,9 @@ class _BaseCode:
                             rekeyedAttachedTitles, splittedHtm
                             )
                         )
+                    return 'ok'
                 else:
-                    return 'tree is null'
+                    return 'subtree is null'
             else:
                 return 'parsed is null'
 
@@ -369,52 +328,16 @@ class _BaseCode:
         release_date = cls.codeHeaders[CUR_RD_KEY]['release_date']
         effective_date = cls.codeHeaders[CUR_RD_KEY]['effective_date']
 
-        cls.partOfCodeCounter = 1
         for item in treeItem:
-            if 'caption' not in item:
-                commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
-                doc_id = f"{rd_doc_id_prefix}/{commonPart}"
-                interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
-                absolute_path = \
-                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
-                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
+            try:
+                title = item['caption'] + item['_text']
+            except KeyError:
                 title = item['_text']
-                dstLabel = item['label']
-                try:
-                    attached = rekeyedAttachedTitles[title]['tooltip']
-                except KeyError:
-                    continue
-                htmParNum = splittedHtm[title]['htmParNum']
-                if 'cons_note' in splittedHtm[title]:
-                    consNote = splittedHtm[title]['cons_note']
-                else:
-                    consNote = None
-                if 'redaction_note' in splittedHtm[title]:
-                    rdNote = splittedHtm[title]['redaction_note']
-                else:
-                    rdNote = None
-                cls.codeHeaders[doc_id] = cls.create_header(
-                    CUR_RD_KEY, supertype, doc_type, absolute_path,
-                    interredaction_id, title, release_date, effective_date,
-                    attached, dstLabel, htmParNum, rdNote, consNote)
-                # debug print
-                cls.recursCounter += 1
-                print(f"Recursive processing of headers up to and including "
-                      f"articles {cls.recursCounter}...", end='\r')
-                if item['treeItem']:
-                    articleLines.update(
-                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
-                            item['treeItem'], doc_id, CUR_RD_KEY,
-                            rekeyedAttachedTitles, splittedHtm
-                            )
-                        )
-                else:
-                    return articleLines
-                continue
-
-            title = item['caption'] + item['_text']
             dstLabel = item['label']
-            attached = rekeyedAttachedTitles[title]['tooltip']
+            try:
+                attached = rekeyedAttachedTitles[title]['tooltip']
+            except KeyError:
+                continue
             htmParNum = splittedHtm[title]['htmParNum']
             if 'cons_note' in splittedHtm[title]:
                     consNote = splittedHtm[title]['cons_note']
@@ -427,47 +350,43 @@ class _BaseCode:
 
             spam = frequent_case(cls.SECTION_SIGN, cls.sectionNumberPattern,
                                  item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam == 'treeItem is broken':
+                return None
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBSECTION_SIGN,
                                  cls.subsectionNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam == 'treeItem is broken':
+                return None
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.CHAPTER_SIGN, cls.chapterNumberPattern,
                                  item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam == 'treeItem is broken':
+                return None
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.PARAGRAPH_SIGN,
                                  cls.paragraphNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam == 'treeItem is broken':
+                return None
+            if spam != 'parsed is null':
                 continue
             spam = frequent_case(cls.SUBPARAGRAPH_SIGN,
                                  cls.subparagraphNumberPattern, item)
-            if spam == 'tree is null':
-                return articleLines
-            elif spam != 'parsed is null':
+            if spam == 'treeItem is broken':
+                return None
+            if spam != 'parsed is null':
                 continue
-            nums = cls.articlesNumbersPattern.findall(item['caption'])
-            if not nums:
-                rangeNums = cls.partNumberRangePattern.search(item['caption'])
-                if rangeNums is None:
-                    rangeNums = cls.partNumberRangePattern.search(
-                        item['caption']+item['_text'])
-                if rangeNums is not None:
-                    rNums = cls.partNumberRangeNumPattern.findall(rangeNums[0])
-                    template = rNums[0]
-                    digitFrom = int(
-                        cls.partNumberRangeNumLastNum.search(rNums[0])[0])
-                    digitTo = int(
-                        cls.partNumberRangeNumLastNum.search(rNums[1])[0])
+            nums = cls.articlesNumbersPattern.findall(title)
+            rangeNums = cls.partNumberRangePattern.search(title)
+            if not nums and rangeNums is not None:
+                rNums = cls.partNumberRangeNumPattern.findall(rangeNums[0])
+                template = rNums[0]
+                digitFrom = int(
+                    cls.partNumberRangeNumLastNum.search(rNums[0])[0])
+                digitTo = int(
+                    cls.partNumberRangeNumLastNum.search(rNums[1])[0])
                 for i in range(digitFrom, digitTo+1):
                     num = cls.partNumberRangeNumLastNum.sub(str(i), template)
                     nums.append(num)
@@ -494,7 +413,31 @@ class _BaseCode:
                     else:
                         articleLines[doc_id] = splittedHtm[title]['lines']
             else:
-                raise Exception(f"{hKey}. Cannot parse a number.")
+                if 'partOfCodeCounter' not in cls.__dict__:
+                    cls.partOfCodeCounter = 1
+                else:
+                    cls.partOfCodeCounter += 1
+                commonPart = f"{cls.CODE_PART_SIGN}-{cls.partOfCodeCounter}"
+                doc_id = f"{rd_doc_id_prefix}/{commonPart}"
+                interredaction_id = f"{cls.CODE_PREFIX}/{commonPart}"
+                absolute_path = \
+                    f"{cls.codeHeaders[hKey]['absolute_path']}/{commonPart}"
+                doc_type = f"{cls.CODE_PREFIX}/{cls.CODE_PART_SIGN}"
+                cls.codeHeaders[doc_id] = cls.create_header(
+                    CUR_RD_KEY, supertype, doc_type, absolute_path,
+                    interredaction_id, title, release_date, effective_date,
+                    attached, dstLabel, htmParNum, rdNote, consNote)
+                # debug print
+                cls.recursCounter += 1
+                print(f"Recursive processing of headers up to and including "
+                      f"articles {cls.recursCounter}...", end='\r')
+                if item['treeItem']:
+                    articleLines.update(
+                        cls.get_subhdrs_frm_tree_and_return_lines_for_articles(
+                            item['treeItem'], doc_id, CUR_RD_KEY,
+                            rekeyedAttachedTitles, splittedHtm
+                            )
+                        )
         return articleLines
 
     @classmethod
@@ -960,6 +903,16 @@ class _BaseCode:
                         treeItem, doc_id, CUR_RD_KEY, rekeyedAttachedTitles,
                         splittedHtm)
 
+                # stub for case with broken treeItem
+                if articleLines is None:
+                    print(f"\nWarning: broken treeItem. rd: {CUR_RD_KEY}, "
+                          f"rd_doc_num: {rdDocNumber}")
+                    cls.codeHeaders = {}
+                    with open(pathToFileForKeysThathWereDownloadedYet, 'at',
+                              encoding='utf-8') as file:
+                        file.write(doc_id + '\n')
+                    continue
+
                 articleSubheadersTreeItem = \
                     cls.build_article_subheaders_treeItem(articleLines,
                                                           CUR_RD_KEY)
@@ -973,7 +926,8 @@ class _BaseCode:
                 with open(pathToFileForKeysThathWereDownloadedYet, 'at',
                           encoding='utf-8') as file:
                     file.write(doc_id + '\n')
-        return cls.codeHeaders
+        # return cls.codeHeaders
+        return None
 
 
 class _Ukrf(_BaseCode):
@@ -1047,22 +1001,21 @@ def get_content(
     else:
         raise TypeError(f"'Codes' must be iterable structure with {type(str)} "
                         "as elements.")
-    codesContent = {}
+    # codesContent = {}
     for code in codes:
-        codeContent = _codesParsers[code].get_code_content(
+        _codesParsers[code].get_code_content(
             pathToResultJsonLinesFile, pathToFileForKeysThathWereDownloadedYet)
-        codesContent.update(codeContent)
-    return codesContent
+        # codesContent.update(codeContent)
+    # return codesContent
+    return None
 
 
 if __name__ == '__main__':
-    import os
-    import json
     import time
     start_time = time.time()
     # codes = 'КОАПРФ'
     # codes = {'КОАПРФ', 'УКРФ'}
-    codes = {'КОАПРФ', 'НКРФ', 'ГКРФ', 'УКРФ'}
+    codes = {'КОАПРФ', 'НКРФ', 'УКРФ', 'ГКРФ'}
     get_content(codes)
     print(f"\nCodes processing spent {time.time()-start_time} seconds.\n")
     input("press any key...")
