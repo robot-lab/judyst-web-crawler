@@ -32,6 +32,7 @@ class KSRFSource(DataSource):
         It return True if all is ok.
         '''
         try:
+            # TODO repair site available check
             # res = ping(KSRF_PAGE_URI)
             # if (not res):
             #    return False
