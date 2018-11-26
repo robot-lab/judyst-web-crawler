@@ -5,7 +5,6 @@ if __package__:
     from web_crawler.web_crawler import DataSource,\
         DataType, DataSourceType 
     from web_crawler.ksrf import *
-    from web_crawler.utils import *
 else:
     from web_crawler import DataSource,\
         DataType, DataSourceType 

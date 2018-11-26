@@ -10,9 +10,9 @@ class DatabaseWrapper(DataSource):
     source = None
     DOCUMENTS = 'Documents'
     LINKS = 'Links'
-    DOCUMENT_FIELDS = ['supertype', 'doc_type',' title',
-                       'release_date', 'text', 'text_source_url',
-                       'effective_date',' absolute_path',
+    DOCUMENT_FIELDS = ['supertype', 'doc_type','title',
+                       'release_date' , 'text_source_url',
+                       'effective_date','absolute_path',
                        'interredaction_id', 'cons_selected_info']
     LINK_FIELDS = ['doc_id_from', 'doc_id_to', 'positions_list', 'citations_number']
     def __init__(self, name, dataSource):
@@ -31,11 +31,14 @@ class DatabaseWrapper(DataSource):
 
 
     def _prepare_data(self, data, fieldsNames):
-        if 'positions_list' in fieldsNames:
-            data['positions_list'] = [json.dumps(data['positions_list'][i]) for i in range(len(data['positions_list']))]
+        fieldName = 'positions_list'
+        if  fieldName in fieldsNames and fieldName in data.keys():
+            data['citations_number'] = len(data[fieldName])
+            data[fieldName] = [json.dumps(data[fieldName][i]) for i in range(len(data[fieldName]))]
 
-        if 'cons_selected_info' in fieldsNames:
-            data['cons_selected_info'] = json.dumps(data['cons_selected_info'])
+        fieldName = 'cons_selected_info'
+        if fieldName in fieldsNames and fieldName in data.keys():
+            data[fieldName] = json.dumps(data[fieldName])
 
         return data
 
@@ -43,7 +46,8 @@ class DatabaseWrapper(DataSource):
     def _create_data(self, dataDict, fieldNames, modelName, **requireKwargs):
         data = dict()
         for fieldName in fieldNames:
-            data[fieldName] = dataDict[fieldNames]
+            if fieldName in dataDict.keys():
+                data[fieldName] = dataDict[fieldName]
         data = self._prepare_data(data, fieldNames)
         self.source.create_data(model_name=modelName, **data,
                                 **requireKwargs)
@@ -52,7 +56,8 @@ class DatabaseWrapper(DataSource):
     def _edit_data(self, dataDict, fieldNames, modelName, **requireKwargs):
         data = dict()
         for fieldName in fieldNames:
-            data[fieldName] = dataDict[fieldNames]
+            if fieldName in dataDict.keys():
+                data[fieldName] = dataDict[fieldName]
         data = self._prepare_data(data, fieldNames)
         self.source.edit_data(data, model_name=modelName, **requireKwargs)
 
