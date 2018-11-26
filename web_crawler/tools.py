@@ -54,7 +54,7 @@ def updatae_database_from_source(databaseSource, source, supertype='KSRF'):
     '''
 
     if (supertype == 'KSRF'):
-        print(time.time)
+        print(time.time())
         print('Start updating... ')
         headers = source.get_all_data(DataType.DOCUMENT_HEADER)
         print(f'headers length: {len(headers)}')
