@@ -65,6 +65,6 @@ def updatae_database_from_source(databaseSource, source, supertype='KSRF'):
             text = source.get_data(uid, DataType.DOCUMENT_TEXT)
             databaseSource.put_data(uid, text, DataType.DOCUMENT_TEXT)
             print(f'uid {uid} puted.')
-        print(time.time)
+        print(time.time())
         print('all done')
 
