@@ -63,13 +63,13 @@ class DatabaseWrapper(DataSource):
 
 
     def get_data(self, dataId, dataType):
-        if (dataType == DataType.DOCUMENT_HEADER):
+        if dataType == DataType.DOCUMENT_HEADER:
             model_name = self.DOCUMENTS
             header = dict()
             self._request_fields(header, self.DOCUMENT_FIELDS, 
                                  model_name, dataId)            
             return header
-        if (dataType == DataType.DOCUMENT_TEXT):
+        if dataType == DataType.DOCUMENT_TEXT:
             text = self.source.get_data('text',
                                               model_name=self.DOCUMENTS,
                                               doc_id=dataId)
@@ -93,7 +93,7 @@ class DatabaseWrapper(DataSource):
     
 
     def put_data(self, docId, data, dataType):
-        if (dataType == DataType.DOCUMENT_HEADER):
+        if dataType == DataType.DOCUMENT_HEADER:
             modelName = self.DOCUMENTS
             if (self.source.get_data('doc_id', model_name=self.DOCUMENTS,
                                      doc_id=docId) is None):
@@ -103,7 +103,7 @@ class DatabaseWrapper(DataSource):
                 self._edit_data(data, self.DOCUMENT_FIELDS, modelName, doc_id=docId)
             return
 
-        if (dataType == DataType.LINK):
+        if dataType == DataType.LINK:
             modelName = self.LINKS
             doc_id_from = data['doc_id_from']
             doc_id_to = data['doc_id_to']
@@ -118,7 +118,7 @@ class DatabaseWrapper(DataSource):
                 
             return    
 
-        if (dataType == DataType.DOCUMENT_TEXT):
+        if dataType == DataType.DOCUMENT_TEXT:
             if (self.source.get_data('doc_id', model_name=self.DOCUMENTS,
                                      doc_id=docId is None)):                                   
                 self.source.create_data(model_name=self.DOCUMENTS,
@@ -139,7 +139,7 @@ class DatabaseWrapper(DataSource):
             for uid in dataCollection:
                 self.put_data(uid, dataCollection[uid], dataType)
             return
-        if (dataType == DataType.LINK):
+        if dataType == DataType.LINK:
             for link in dataCollection:
                 self.put_data('', link, DataType.LINK)
             return
