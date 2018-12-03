@@ -8,6 +8,7 @@ class DataType(Enum):
     DOCUMENT_HEADER = 0
     DOCUMENT_TEXT = 1
     ANALYZIS_RESULT = 2
+    LINK = 3
 
 
 class DataSourceType(Enum):

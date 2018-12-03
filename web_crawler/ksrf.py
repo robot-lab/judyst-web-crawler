@@ -25,8 +25,16 @@ if __package__:
 else:
     from web_crawler import DataSource, DataSourceType, DataType
 
-PATH_TO_CHROME_WEB_DRIVER = os.path.join(
-    os.path.dirname(__file__), 'Selenium', 'chromedriver.exe')
+
+if system_name().lower() == 'windows':
+    PATH_TO_CHROME_WEB_DRIVER = os.path.join(os.path.dirname(__file__),
+                             'Selenium','chromedriver.exe')
+else:
+    PATH_TO_CHROME_WEB_DRIVER = os.path.join(os.path.dirname(__file__),
+                             'Selenium','chromedriver')
+
+
+
 KSRF_PAGE_URI = 'http://www.ksrf.ru/ru/Decision/Pages/default.aspx'
 
 
