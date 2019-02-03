@@ -36,21 +36,22 @@ class KSRFSource(DataSource):
             # res = ping(KSRF_PAGE_URI)
             # if (not res):
             #    return False
-            headersFromBase = self._database_source.get_all_data(
-                    DataType.DOCUMENT_HEADER)
+            # Error: too many headers in database. TODO fix it. 
+            # headersFromBase = self._database_source.get_all_data(
+            #         DataType.DOCUMENT_HEADER)
             
-            if (headersFromBase is None or len(headersFromBase) == 0):
-                headers = get_decision_headers()
-                self._database_source.\
-                    put_data_collection(headers,
-                                        DataType.DOCUMENT_HEADER)
-            else:
-                headers = headersFromBase
+            # if (headersFromBase is None or len(headersFromBase) == 0):
+            #     headers = get_decision_headers()
+            #     self._database_source.\
+            #         put_data_collection(headers,
+            #                             DataType.DOCUMENT_HEADER)
+            # else:
+            #     headers = headersFromBase
 
-            self._decision_urls = {}
-            for dataId in headers:
-                elem = headers[dataId]
-                self._decision_urls[dataId] = elem['text_source_url']
+            # self._decision_urls = {}
+            # for dataId in headers:
+            #     elem = headers[dataId]
+            #     self._decision_urls[dataId] = elem['text_source_url']
             return True
         except Exception as e:
             print(e)

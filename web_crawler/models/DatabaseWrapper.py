@@ -10,11 +10,12 @@ class DatabaseWrapper(DataSource):
     source = None
     DOCUMENTS = 'Documents'
     LINKS = 'Links'
-    DOCUMENT_FIELDS = ['supertype', 'doc_type','title',
-                       'release_date' , 'text_source_url',
-                       'effective_date','absolute_path',
+    DOCUMENT_FIELDS = ['supertype', 'doc_type', 'title',
+                       'release_date', 'text_source_url',
+                       'effective_date', 'absolute_path',
                        'interredaction_id', 'cons_selected_info']
-    LINK_FIELDS = ['doc_id_from', 'doc_id_to', 'positions_list', 'citations_number']
+    LINK_FIELDS = ['doc_id_from', 'doc_id_to', 'positions_list',
+                   'citations_number']
     def __init__(self, name, dataSource):
         super().__init__(name, DataSourceType.DATABASE)
         self.source = dataSource
@@ -29,7 +30,6 @@ class DatabaseWrapper(DataSource):
                                                model_name=modelName,
                                                doc_id=doc_id)
 
-
     def _prepare_data(self, data, fieldsNames):
         fieldName = 'positions_list'
         if  fieldName in fieldsNames and fieldName in data.keys():
@@ -39,9 +39,7 @@ class DatabaseWrapper(DataSource):
         fieldName = 'cons_selected_info'
         if fieldName in fieldsNames and fieldName in data.keys():
             data[fieldName] = json.dumps(data[fieldName])
-
         return data
-
 
     def _create_data(self, dataDict, fieldNames, modelName, **requireKwargs):
         data = dict()
@@ -52,7 +50,6 @@ class DatabaseWrapper(DataSource):
         self.source.create_data(model_name=modelName, **data,
                                 **requireKwargs)
 
-
     def _edit_data(self, dataDict, fieldNames, modelName, **requireKwargs):
         data = dict()
         for fieldName in fieldNames:
@@ -60,7 +57,6 @@ class DatabaseWrapper(DataSource):
                 data[fieldName] = dataDict[fieldName]
         data = self._prepare_data(data, fieldNames)
         self.source.edit_data(data, model_name=modelName, **requireKwargs)
-
 
     def get_data(self, dataId, dataType):
         if dataType == DataType.DOCUMENT_HEADER:
@@ -71,12 +67,26 @@ class DatabaseWrapper(DataSource):
             return header
         if dataType == DataType.DOCUMENT_TEXT:
             text = self.source.get_data('text',
-                                              model_name=self.DOCUMENTS,
-                                              doc_id=dataId)
+                                        model_name=self.DOCUMENTS,
+                                        doc_id=dataId)
             return text
         
         raise ValueError('Not supported data type')
 
+    def get_filtered_data(self, dataType, **kwargs):
+        if dataType == DataType.DOCUMENT_HEADER:
+            model_name = self.DOCUMENTS
+            field_list = self.DOCUMENT_FIELDS.copy()
+            field_list.append('doc_id')
+            headers = self.source.get_filtered_data(
+                           field_list,
+                           model_name=model_name,
+                           **kwargs)
+                        
+            return {headers[i]['doc_id']: headers[i]
+                    for i in range(len(headers))}
+        else:
+            raise NotImplementedError('Not supported data type')
 
     def get_all_data(self, dataType):
         uids = self.source.get_all_data('doc_id',
